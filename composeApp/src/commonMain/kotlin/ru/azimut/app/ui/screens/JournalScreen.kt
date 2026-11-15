@@ -211,7 +211,8 @@ fun JournalScreen(
                                 Stat(tr("Длина", "Distance"), formatDistance(track.distanceMeters))
                                 Stat(tr("Точек", "Points"), track.pointCount.toString())
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                            androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
                                 TextButton(onClick = { withTrack(track) { onShow(it, false) } }) {
                                     Text(tr("На карте", "On map"))
                                 }
