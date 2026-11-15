@@ -72,8 +72,13 @@ fun JournalScreen(
     /** From the comparison dialog: recorded becomes the active track, the plan — a background line. */
     onShowComparison: (recorded: Track, planned: Track) -> Unit = { _, _ -> },
     onDelete: (id: String) -> Unit,
+    /** Recently deleted tracks (kept 30 days). */
+    trash: List<ru.azimut.app.core.storage.TrashedTrack> = emptyList(),
+    onRestore: (id: String) -> Unit = {},
+    onPurge: (id: String) -> Unit = {},
     onBack: () -> Unit,
 ) {
+    var showTrash by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf<TrackSummary?>(null) }
     var precheck by remember { mutableStateOf<Pair<Track, ru.azimut.app.core.export.TrackPrecheck>?>(null) }
@@ -158,6 +163,11 @@ fun JournalScreen(
 
     Column(Modifier.fillMaxSize()) {
         BackHeader(tr("Журнал поездок", "Trip journal"), onBack)
+        if (trash.isNotEmpty()) {
+            TextButton(onClick = { showTrash = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text(tr("Недавно удалённые (${trash.size})", "Recently deleted (${trash.size})"))
+            }
+        }
         if (summaries.isEmpty()) {
             EmptyState(
                 tr(
@@ -501,10 +511,40 @@ fun JournalScreen(
         )
     }
 
+    if (showTrash) {
+        AlertDialog(
+            onDismissRequest = { showTrash = false },
+            title = { Text(tr("Недавно удалённые", "Recently deleted")) },
+            text = {
+                if (trash.isEmpty()) {
+                    Text(tr("Пусто", "Empty"))
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(trash, key = { it.summary.id }) { item ->
+                            Column {
+                                Text(item.summary.name, style = MaterialTheme.typography.bodyLarge)
+                                Row {
+                                    TextButton(onClick = { onRestore(item.summary.id) }) {
+                                        Text(tr("Восстановить", "Restore"))
+                                    }
+                                    TextButton(onClick = { onPurge(item.summary.id) }) {
+                                        Text(tr("Удалить навсегда", "Delete forever"))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showTrash = false }) { Text(tr("Закрыть", "Close")) } },
+        )
+    }
+
     confirmDelete?.let { track ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text(tr("Удалить «${track.name}»?", "Delete “${track.name}”?")) },
+            text = { Text(tr("Трек попадёт в «Недавно удалённые» на 30 дней.", "The track goes to Recently deleted for 30 days.")) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete(track.id)

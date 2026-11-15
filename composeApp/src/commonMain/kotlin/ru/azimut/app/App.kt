@@ -82,6 +82,7 @@ fun App() {
     var settings by remember { mutableStateOf(AppSettings()) }
     var points by remember { mutableStateOf<List<Waypoint>>(emptyList()) }
     var summaries by remember { mutableStateOf<List<TrackSummary>>(emptyList()) }
+    var trash by remember { mutableStateOf<List<ru.azimut.app.core.storage.TrashedTrack>>(emptyList()) }
     var screen by remember { mutableStateOf(Screen.Map) }
     var previousScreen by remember { mutableStateOf(Screen.Map) }
     val showMapRequest by AppCommands.showMap.collectAsState()
@@ -109,6 +110,7 @@ fun App() {
         settings = withContext(Dispatchers.Default) { settingsStore.load() }
         points = withContext(Dispatchers.Default) { pointsStore.load() }
         summaries = withContext(Dispatchers.Default) { trackStore.list() }
+        trash = withContext(Dispatchers.Default) { runCatching { trackStore.purgeExpired() }; trackStore.listTrash() }
         // The autosave belongs to the live recording if the service is still running.
         pendingRecovery = if (TrackRecorder.state.value.recording) {
             null
@@ -209,6 +211,7 @@ fun App() {
         }
         backgroundTracks = backgroundTracks.filterNot { it.id == id }
         summaries = trackStore.list()
+        trash = trackStore.listTrash()
     }
     // Saving rewrites the whole points.json/points.gpx, so it runs off the UI thread.
     // The mutex keeps writes in order when several edits happen quickly.
@@ -525,6 +528,16 @@ fun App() {
                         screen = Screen.Map
                     },
                     onDelete = { id -> deleteTrack(id) },
+                    trash = trash,
+                    onRestore = { id ->
+                        runCatching { trackStore.restore(id) }
+                        summaries = trackStore.list()
+                        trash = trackStore.listTrash()
+                    },
+                    onPurge = { id ->
+                        runCatching { trackStore.purge(id) }
+                        trash = trackStore.listTrash()
+                    },
                     onBack = { goBack() },
                 )
 
