@@ -79,6 +79,7 @@ fun JournalScreen(
     onBack: () -> Unit,
 ) {
     var showTrash by remember { mutableStateOf(false) }
+    var confirmPurge by remember { mutableStateOf<ru.azimut.app.core.storage.TrashedTrack?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf<TrackSummary?>(null) }
     var precheck by remember { mutableStateOf<Pair<Track, ru.azimut.app.core.export.TrackPrecheck>?>(null) }
@@ -281,14 +282,13 @@ fun JournalScreen(
                 }
             }
         }
-        Card(
-            Modifier.fillMaxWidth().padding(12.dp),
-        ) {
-            Column(Modifier.padding(12.dp)) {
-                InfoRow(tr("Папка данных", "Data folder"), PlatformFiles.navDataRoot())
-                InfoRow(tr("GPX-треки", "GPX tracks"), "NavData/tracks/")
-            }
-        }
+        Text(
+            tr("Папка данных: ", "Data folder: ") + PlatformFiles.navDataRoot() + "/tracks",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        )
     }
 
     precheck?.let { (track, result) ->
@@ -528,7 +528,7 @@ fun JournalScreen(
                                     TextButton(onClick = { onRestore(item.summary.id) }) {
                                         Text(tr("Восстановить", "Restore"))
                                     }
-                                    TextButton(onClick = { onPurge(item.summary.id) }) {
+                                    TextButton(onClick = { confirmPurge = item }) {
                                         Text(tr("Удалить навсегда", "Delete forever"))
                                     }
                                 }
@@ -538,6 +538,26 @@ fun JournalScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showTrash = false }) { Text(tr("Закрыть", "Close")) } },
+        )
+    }
+
+    confirmPurge?.let { item ->
+        AlertDialog(
+            onDismissRequest = { confirmPurge = null },
+            title = { Text(tr("Удалить навсегда?", "Delete forever?")) },
+            text = {
+                Text(
+                    "«${item.summary.name}»\n" +
+                        "${formatDate(item.summary.startedAt)} · ${formatDistance(item.summary.distanceMeters)}\n" +
+                        tr("Восстановить будет нельзя.", "This cannot be undone."),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onPurge(item.summary.id); confirmPurge = null }) {
+                    Text(tr("Удалить навсегда", "Delete forever"))
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmPurge = null }) { Text(tr("Отмена", "Cancel")) } },
         )
     }
 
