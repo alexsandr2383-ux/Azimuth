@@ -1020,6 +1020,34 @@ fun MapScreen(
             }
         }
 
+        // Layers button: top-right corner like Guru, always visible.
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 10.dp, end = 10.dp)
+                .gestureBarrier(),
+        ) {
+            MapControl(
+                Icons.Filled.Layers,
+                tr("Слои", "Layers"),
+                settings.mapLayer == "satellite" || settings.overlayEnabled,
+                size = controlSize,
+            ) {
+                showLayers = true
+            }
+        if (showLayers) {
+            MapLayersSheet(
+                settings = settings,
+                onSettingsChange = onSettingsChange,
+                allStyles = MapStyles.all,
+                overlayOptions = MapStyles.satelliteOptions +
+                    UserMaps.stylesFlow.collectAsState().value.map { it.cacheLayer to Pair(it.titleRu, it.titleEn) },
+                onPoiTypes = { showPoiTypes = true },
+                onDismiss = { showLayers = false },
+            )
+        }
+        }
+
         // Right side controls; the strip swallows taps so misses hit nothing.
         Column(
             modifier = Modifier
@@ -1112,137 +1140,6 @@ fun MapScreen(
             ) {
                 routeDialogOpen = true
                 secondaryMenu = null
-            }
-
-            Box {
-                MapControl(
-                    Icons.Filled.Layers,
-                    tr("Слои", "Layers"),
-                    settings.mapLayer == "satellite" || settings.overlayEnabled,
-                    size = controlSize,
-                ) {
-                    showLayers = true
-                }
-                DropdownMenu(expanded = showLayers, onDismissRequest = { showLayers = false }) {
-                    DropdownMenuItem(
-                        text = { Text(tr("Спутник", "Satellite")) },
-                        onClick = {
-                            onSettingsChange(
-                                settings.copy(
-                                    mapLayer = "satellite",
-                                    overlayEnabled = false,
-                                )
-                            )
-                            showLayers = false
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                (if (settings.mapLayer == "base" && !settings.overlayEnabled) "✓ " else "") +
-                                    tr("Только базовая", "Base only"),
-                            )
-                        },
-                        onClick = {
-                            onSettingsChange(
-                                settings.copy(
-                                    mapLayer = "base",
-                                    overlayEnabled = false,
-                                )
-                            )
-                            showLayers = false
-                        },
-                    )
-                    Text(
-                        text = tr("Базовая карта", "Base map"),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    MapStyles.all.forEach { style ->
-                        val selected = settings.mapLayer == "base" && !settings.overlayEnabled && settings.mapStyle == style.id
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = (if (selected) "✓ " else "") + style.title(settings.language),
-                                    color = if (selected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface,
-                                )
-                            },
-                            onClick = {
-                                onSettingsChange(settings.copy(mapLayer = "base", mapStyle = style.id, overlayEnabled = false))
-                                showLayers = false
-                            },
-                        )
-                    }
-                    Text(
-                        text = tr("Наложение", "Overlay"),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    val overlayOptions = MapStyles.satelliteOptions +
-                        UserMaps.stylesFlow.collectAsState().value.map { it.cacheLayer to Pair(it.titleRu, it.titleEn) }
-                    overlayOptions.forEach { (layerId, titles) ->
-                        val selected = settings.overlayEnabled && settings.overlayLayer == layerId
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    (if (selected) "✓ " else "") + if (settings.language == "en") titles.second else titles.first,
-                                    color = if (selected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface,
-                                )
-                            },
-                            onClick = {
-                                onSettingsChange(
-                                    settings.copy(
-                                        mapLayer = "base",
-                                        overlayEnabled = true,
-                                        overlayLayer = layerId,
-                                    )
-                                )
-                                showLayers = false
-                            },
-                        )
-                    }
-                    if (settings.overlayEnabled) {
-                        DropdownMenuItem(
-                            text = { Text(tr("Скрыть наложение", "Hide overlay")) },
-                            onClick = {
-                                onSettingsChange(settings.copy(overlayEnabled = false))
-                                showLayers = false
-                            },
-                        )
-                    }
-                    Text(
-                        text = tr("Точки интереса", "Points of interest"),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                (if (settings.showPois) "✓ " else "") + tr("Показывать POI", "Show POI"),
-                            )
-                        },
-                        onClick = {
-                            onSettingsChange(settings.copy(showPois = !settings.showPois))
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                tr("Типы POI", "POI types") +
-                                    " (${settings.poiTypes.size}/${PoiTypes.ALL.size})",
-                            )
-                        },
-                        onClick = {
-                            showLayers = false
-                            showPoiTypes = true
-                        },
-                    )
-                }
             }
 
             if (showPoiTypes) {

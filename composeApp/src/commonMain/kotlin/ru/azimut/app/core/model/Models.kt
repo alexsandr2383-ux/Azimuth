@@ -160,8 +160,8 @@ data class AppSettings(
     val bigSpeed: Boolean = false,
     /** Hillshade overlay from the imported DEM. */
     val hillshade: Boolean = false,
-    /** Warn when approaching a saved waypoint. */
-    val proximityAlerts: Boolean = true,
+    /** Warn when approaching a saved waypoint (off by default: it beeps). */
+    val proximityAlerts: Boolean = false,
     /** Map menu shows every item; compact shows only the frequent ones. */
     val menuDetailed: Boolean = false,
     /** Settings screen shows every section; compact hides the rarely used ones. */
