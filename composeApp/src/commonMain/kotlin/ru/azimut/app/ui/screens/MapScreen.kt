@@ -1086,59 +1086,17 @@ fun MapScreen(
                 ) { areaDownload++ }
             }
 
-            Box {
-                MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    if (settings.menuDetailed) {
-                        DropdownMenuItem(
-                            text = { Text(tr("К координатам", "Go to coordinates")) },
-                            leadingIcon = { Icon(Icons.Filled.Navigation, null) },
-                            onClick = { showMenu = false; showGoto = true },
-                        )
-                    }
-                    DropdownMenuItem(
-                        text = { Text(tr("Точки", "Waypoints")) },
-                        leadingIcon = { Icon(Icons.Filled.Place, null) },
-                        onClick = { showMenu = false; onOpenPoints() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(tr("Журнал поездок", "Trip journal")) },
-                        leadingIcon = { Icon(Icons.Filled.List, null) },
-                        onClick = { showMenu = false; onOpenJournal() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(tr("Настройки", "Settings")) },
-                        leadingIcon = { Icon(Icons.Filled.Settings, null) },
-                        onClick = { showMenu = false; onOpenSettings() },
-                    )
-                    if (settings.menuDetailed) {
-                        DropdownMenuItem(
-                            text = { Text(tr("Справка", "Help")) },
-                            leadingIcon = { Icon(Icons.Filled.Help, null) },
-                            onClick = { showMenu = false; onOpenHelp() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(tr("О приложении", "About")) },
-                            leadingIcon = { Icon(Icons.Filled.Info, null) },
-                            onClick = { showMenu = false; onOpenAbout() },
-                        )
-                    }
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (settings.menuDetailed) {
-                                    tr("Компактный вид", "Compact view")
-                                } else {
-                                    tr("Подробный вид", "Detailed view")
-                                }
-                            )
-                        },
-                        leadingIcon = { Icon(Icons.Filled.ExpandMore, null) },
-                        onClick = {
-                            onSettingsChange(settings.copy(menuDetailed = !settings.menuDetailed))
-                        },
-                    )
-                }
+            MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
+            if (showMenu) {
+                MapMenuSheet(
+                    onDismiss = { showMenu = false },
+                    onGoto = { showMenu = false; showGoto = true },
+                    onPoints = { showMenu = false; onOpenPoints() },
+                    onJournal = { showMenu = false; onOpenJournal() },
+                    onSettings = { showMenu = false; onOpenSettings() },
+                    onHelp = { showMenu = false; onOpenHelp() },
+                    onAbout = { showMenu = false; onOpenAbout() },
+                )
             }
 
             if (controlsExpanded) {
