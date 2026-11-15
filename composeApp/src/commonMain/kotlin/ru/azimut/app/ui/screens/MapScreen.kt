@@ -1650,46 +1650,12 @@ fun MapScreen(
     }
 
     if (showGoto) {
-        val invalidGoto = tr(
-            "Не удалось разобрать координаты. Примеры: 55.75, 37.62 или 55°07'23\"N 37°27'18\"E",
-            "Could not parse the coordinates. Examples: 55.75, 37.62 or 55°07'23\"N 37°27'18\"E",
-        )
-        AlertDialog(
-            onDismissRequest = { showGoto = false },
-            title = { Text(tr("К координатам", "Go to coordinates")) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = gotoText,
-                        onValueChange = { gotoText = it },
-                        label = { Text(tr("Широта, долгота", "Latitude, longitude")) },
-                        singleLine = true,
-                    )
-                    Text(
-                        tr(
-                            "Поддерживаются десятичные градусы и формат ГГ°ММ'СС\"N.",
-                            "Decimal degrees and D\u00B0M'SS\"N format are supported.",
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val parsed = parseCoordPair(gotoText)
-                    if (parsed != null) {
-                        gotoTarget = GeoPoint(parsed.first, parsed.second)
-                        gotoKey++
-                        showGoto = false
-                    } else {
-                        message = invalidGoto
-                    }
-                }) { Text(tr("Перейти", "Go")) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showGoto = false }) { Text(tr("Отмена", "Cancel")) }
-            },
+        GotoDialog(
+            text = gotoText,
+            onTextChange = { gotoText = it },
+            onDismiss = { showGoto = false },
+            onGo = { gotoTarget = it; gotoKey++; showGoto = false },
+            onInvalid = { message = it },
         )
     }
 
@@ -1720,30 +1686,9 @@ fun MapScreen(
         )
     }
 
-    if (exitArmed) {
-        // The whole screen is a tap barrier while the exit confirmation is up.
-        Box(Modifier.fillMaxSize().gestureBarrier(), contentAlignment = Alignment.Center) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = 2.dp,
-            ) {
-                Text(
-                    exitHint,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-    }
+    if (exitArmed) ExitHintOverlay(exitHint)
     message?.let { text ->
-        if (!(exitArmed && text == exitHint)) {
-            AlertDialog(
-                onDismissRequest = { message = null },
-                confirmButton = { TextButton(onClick = { message = null }) { Text(tr("OK", "OK")) } },
-                text = { Text(text) },
-            )
-        }
+        if (!(exitArmed && text == exitHint)) MessageDialog(text) { message = null }
     }
 
     planNameFor?.let { result ->
