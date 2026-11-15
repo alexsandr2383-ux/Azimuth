@@ -1,0 +1,426 @@
+{
+  "prompt": {
+    "schema": "azimuth-audit-prompt/v1",
+    "generated_at": "2026-11-15",
+    "generated_by": "opencode (big-pickle) — script-based audit of the working copies D:\\Azimut-Dev (active) and D:\\Azimut (origin/base)",
+    "language": "ru",
+    "role": "Ты — независимый senior-аудитор мобильных/десктопных приложений (Kotlin Multiplatform + Compose Multiplatform, offline-first GIS). Твоя задача — проверить as-built проект «Азимут» по предоставленным фактам, подтвердить или опровергнуть findings, найти пропущенное и выдать приоритизированный план работ с конкретными файлами и патчами.",
+    "objective": "Независимый аудит релиза 0.4.1 (HEAD e6085c7, ветка opencode/poi-scale) и план исправлений P0/P1/P2. Не переписывай приложение с нуля и не предлагай смену стека: оценивай существующую кодовую базу.",
+    "context": {
+      "workspace": {
+        "primary": "D:\\Azimut-Dev — активная рабочая копия (новейший код, 0.4.1)",
+        "origin": "D:\\Azimut — клон-источник, зарегистрирован как git remote origin (D:/Azimut) у D:\\Azimut-Dev; отстаёт на 6 коммитов (база 2dcdeb8, 0.3.4) и содержит релизные артефакты в dist/",
+        "note": "Обе копии на одной ветке opencode/poi-scale; remote указывает на локальный путь на том же диске"
+      },
+      "vcs": {
+        "type": "git",
+        "branch": "opencode/poi-scale",
+        "head": "e6085c7",
+        "commits": 29,
+        "first_commit": "2026-10-28",
+        "last_commit": "2026-11-13",
+        "remotes": ["origin -> D:/Azimut (fetch/push, локальный путь)"],
+        "worktree_dirty": false,
+        "tracked_files": 217
+      },
+      "product": {
+        "name_ru": "Азимут",
+        "name_en": "Azimuth",
+        "package": "ru.azimut.app",
+        "version_name": "0.4.1",
+        "version_code": 8,
+        "author": "Скляров Александр Михайлович",
+        "audience": "эндуро (основной), хайкинг, вело/мото/квадро/авто — вторичные",
+        "key_feature": "«Режим Сусанина» (Explorer Mode): свободный роутинг с гарантированным выходом к точке возврата",
+        "platforms": {
+          "android": "основная, полный функционал (minSdk 26, targetSdk 35, compileSdk 35)",
+          "windows_desktop": "основная, полный функционал (JVM 17, MSI/EXE)",
+          "ios": "заявлена архитектурно, кода нет (см. findings)"
+        },
+        "principles": [
+          "offline-first: сеть только по явному действию или подтверждению «Загрузить?»",
+          "нет аккаунтов, телеметрии, аналитики; данные только локально (NavData)",
+          "«нет данных» означает честное «нет данных», а не «безопасно»",
+          "строки UI только через tr(ru, en); новые поля моделей только с default (бесплатная JSON-миграция)"
+        ]
+      },
+      "stack": {
+        "language": "Kotlin 2.1.0",
+        "ui": "Compose Multiplatform 1.7.3 (Material3), Kotlin Compose plugin 2.1.0",
+        "build": "Gradle 8.11.1 (wrapper), AGP 8.7.3, JDK 17 target / JDK 21 toolchain (D:\\Azimut\\.tools\\jdk-21...)",
+        "android_map": "MapLibre GL Android SDK 11.8.0",
+        "desktop_map": "собственный рендер (AWT/Swing, 1530 строк)",
+        "routing": "BRouter 1.7.10-ro.jar (локальный, assets/profiles2 + segments4)",
+        "storage": "JSON-модели + kotlinx.serialization 1.7.3, SQLite (mbtiles/sqlitedb/gpkg), локальные файлы NavData",
+        "other": "kotlinx-coroutines 1.9.0, kotlinx-datetime 0.6.1, sqlite-jdbc 3.46.1.3 (desktop), jSerialComm 2.11.0 (NMEA)"
+      }
+    },
+    "metrics": {
+      "kotlin_files": 163,
+      "kotlin_loc_total": 21267,
+      "loc_by_source_set": {
+        "commonMain": { "files": 83, "loc": 12602 },
+        "androidMain": { "files": 32, "loc": 2853 },
+        "desktopMain": { "files": 30, "loc": 3913 },
+        "desktopTest": { "files": 18, "loc": 1899 },
+        "iosMain": { "files": 0, "loc": 0 }
+      },
+      "largest_files_loc": {
+        "composeApp/src/commonMain/kotlin/ru/azimut/app/ui/screens/MapScreen.kt": 2171,
+        "composeApp/src/desktopMain/kotlin/ru/azimut/app/ui/map/PlatformMap.desktop.kt": 1530,
+        "composeApp/src/commonMain/kotlin/ru/azimut/app/ui/screens/SettingsScreen.kt": 1403,
+        "composeApp/src/androidMain/kotlin/ru/azimut/app/ui/map/PlatformMap.android.kt": 669,
+        "composeApp/src/commonMain/kotlin/ru/azimut/app/App.kt": 590,
+        "composeApp/src/commonMain/kotlin/ru/azimut/app/ui/screens/JournalScreen.kt": 563
+      },
+      "expect_actual": { "expect": 35, "actual": 176 },
+      "tests": { "test_files": 18, "suites": 19, "tests": 83, "failures": 0, "errors": 0, "skipped": 0, "location": "composeApp/src/desktopTest (только desktop)" },
+      "todo_fixme_markers": 89,
+      "markers": { "runBlocking": 9, "not_null_assertions": 48, "lateinit": 2, "global_scope": 0 },
+      "docs": {
+        "developer": { "file": "AZIMUT-DEV.md", "kb": 11 },
+        "user_manual": { "file": "INSTRUKCIYA.md", "kb": 55, "sections": 27, "total_lines": 663, "generated_artifacts": ["INSTRUKCIYA.docx", "INSTRUKCIYA.pdf"] }
+      },
+      "disk": {
+        "git_dir_mb": 533.4,
+        "git_loose_objects": 1377,
+        "git_packs": 0,
+        "unreachable_git_blobs": { "count": 231, "mb": 651.4 },
+        "build_dir_mb_primary": 99.4,
+        "ignored_local_artifacts_mb_origin": { "dist": 677.2, "app": 178.0, "portable-test": 162.6, "phone-import": 26.8 }
+      }
+    },
+    "architecture": {
+      "layout": "composeApp/src/{commonMain,androidMain,desktopMain,desktopTest,iosMain}; вся логика в commonMain, платформенное — только expect/actual",
+      "packages_common": {
+        "core/dem": "DEM: DemTile (грид+билинейка), HgtReader (SRTM 1201/3601), GeoTiffReader (несжатые strip/tile Int16/UInt16/Float32, WGS84), DemStore (кэш 8 тайлов), DemImport (Copernicus S3 + докачка Range), DemShade (хиллшейд 384², кэш 6), TrackElevation, SusaninWatch, DataNeeds/DataFetcher",
+        "core/astro": "SunTimes (NOAA), SolarPosition (NOAA γ, ~0.1°/1 мин), TerrainDaylight (горизонт по DEM), TimeUtil",
+        "core/protected": "ProtectedAreas (GeoJSON, bbox-индекс), ProtectedGeometry (ray-casting), ProtectedWatch, OverpassZones",
+        "core/import": "TrackImport (GPX/KML/KMZ/TCX/GeoJSON), PointsIO (+CSV/экспорт), ZipKml, ZipKmlWriter, TrackImportDetect",
+        "core/sync": "SyncEngine (манифест, «новее побеждает», tie ±500 мс, конфликт-копии, никогда не удаляет), WebDavStorage, LanHttpStorage + LanSyncService (JDK HttpServer, токен, path-guard), LocalFolderStorage (zip-slip-guard / SAF), SecretStore (Android Keystore / Windows AES+key file)",
+        "core/export": "TrackPrecheckEngine, TrackSheet + TrackImageRenderer (AWT/Canvas), свой PdfWriter (FlateDecode RGB), Deflate",
+        "core/map": "MapStyles, UserMaps (.mbtiles), TileDb (.sqlitedb/.gpkg→.mbtiles), UserXyz (XYZ URL-шаблоны)",
+        "core/model": "модели, Geo.parseCoordPair, Waypoint.favorite, Track.fordCount, TrackSimplify (Дуглас–Пекер 1.5 м), ExifGeo",
+        "core/storage": "Backup, pruneBackups (ретеншн, default keep 20)",
+        "core/platform": "expect/actual: PlatformFiles (NavData + ensureDirs), PlatformHttp, PlatformLocation, PlatformHeading, PlatformAlert, SystemBars, AndroidApp",
+        "core/routing": "RouteEngine, SegmentDownload, RouteAnalysis",
+        "core/compare": "TrackCompare: факт vs план (боковое отклонение, среднее/макс, доля off-route >50 м, дистанция/время, профили высот)",
+        "core/fuel": "FuelRange: «трамплины-топливо» (запас хода, точки reserve/empty на маршруте)",
+        "ui/screens": "MapScreen 2171, SettingsScreen 1403, JournalScreen 563, PointsScreen 455, HelpScreen 385, MapRouteDialog 306, MapContextMenu 158, AboutScreen 95",
+        "ui/components": "Files (pickers), AppBottomNav (<600 dp), Photos (EXIF-геотеги), VoiceNotes, Share, Common"
+      },
+      "data_dirs": ["maps", "tracks", "dem", "photos", "voice", "backups", "import", "protected", "export", "xyz", "routing/segments4", "profiles2"],
+      "external_sources": [
+        "Copernicus GLO-30/90 DEM: https://copernicus-dem-30m.s3.amazonaws.com (без токена)",
+        "BRouter segments: https://brouter.de/brouter/segments4/{name}",
+        "Overpass API: https://overpass-api.de/api/interpreter",
+        "Open-Meteo: https://api.open-meteo.com/v1/forecast",
+        "Растровые тайлы: OSM, OSM HOT, OpenTopoMap, CyclOSM, ArcGIS World Imagery/Street/Topo"
+      ],
+      "invariants": [
+        "DEM-имена — SW-угол с паддингом: N47E041 = [47..48]N×[41..42]E; DemIndex/HgtReader держать согласованными (DemLookupTest)",
+        "SyncEngine baseline-манифест (SyncEntry.remoteModifiedAt/remoteSize) обязателен для «эхо или правка»",
+        "после изменения NavData — dataVersion++ (App.kt) или локальный reload",
+        "новые папки NavData — в PlatformFiles.ensureDirs() (оба actual) и в zip-бэкап",
+        "версия меняется в 5 местах одновременно (см. findings: фактически продублирована в коде)"
+      ]
+    },
+    "features_as_built": [
+      "офлайн-карта: базовые слои, спутник, наложения/прозрачность, пользовательские .mbtiles и XYZ",
+      "запись GPS-трека, в т.ч. в фоне/при заблокированном экране (foreground service, Android)",
+      "точки/POI: описание, фото (EXIF-геотеги), голосовые заметки, избранное, импорт/экспорт",
+      "офлайн-роутинг BRouter, профили транспорта, пометка пеших троп и запретов, «Режим Сусанина»",
+      "ведение по треку с сигналом при уходе с линии",
+      "DEM/рельеф: высоты, профиль, хиллшейд, секции уклона, броды (из OSM-роутинга)",
+      "световой день с учётом рельефа (NOAA + горизонт по DEM), алармы заката",
+      "слой ООПТ/запретов (GeoJSON + Overpass), аларм при входе в зону",
+      "журнал поездок, проверка трека, экспорт PNG/PDF",
+      "трек-сравнение в журнале: факт vs план (отклонение, время, высоты) — 0.4.0",
+      "«трамплины-топливо»: остаток хода по расходу/баку, маркеры reserve/empty на маршруте — 0.4.1",
+      "погода Open-Meteo (текущая + 24 ч)",
+      "синхронизация: WebDAV, LAN (desktop-сервер + телефон), локальная папка; бэкапы и ретеншн",
+      "виджет записи на главный экран (Android), системный шэринг",
+      "нижняя навигационная панель (ширина < 600 dp), свёрнутые секции настроек",
+      "встроенная офлайн-справка (ru/en)"
+    ],
+    "build_and_verify": {
+      "notes": "Тесты требуют ASCII-пути Gradle: set GRADLE_USER_HOME=D:\\Azimut-Dev\\.gradle-home (кириллический C:\\Users\\Александр\\.gradle ломает тестовый воркер)",
+      "commands": [
+        "set GRADLE_USER_HOME=D:\\Azimut-Dev\\.gradle-home",
+        ".\\gradlew.bat compileKotlinDesktop compileDebugKotlinAndroid",
+        ".\\gradlew.bat desktopTest",
+        ".\\gradlew.bat assembleDebug  # APK: composeApp/build/outputs/apk/debug/",
+        ".\\gradlew.bat createDistributable  # Desktop exe"
+      ],
+      "verified_now": {
+        "desktopTest": "BUILD SUCCESSFUL за 32 с с --rerun-tasks (реальный прогон, не кэш): 19 suites / 83 tests, 0 failures, 0 errors, 0 skipped",
+        "desktopTest_results_xml": "composeApp/build/test-results/desktopTest (timestamp 2026-11-15)",
+        "compileKotlinDesktop": "BUILD SUCCESSFUL (кэш Gradle, до этого собиралось)"
+      }
+    },
+    "audit": {
+      "method": "Статический аудит скриптами (PowerShell/ripgrep/git plumbing) без чтения всего кода: манифест, gradle-конфиги, размеры/LOC, expect/actual, git-объекты, тесты, URLs, секреты, версии, паттерны риска. Сборка/тесты проверены через Gradle.",
+      "checked": [
+        "структура и размеры кодовой базы, крупнейшие файлы, распределение по source set",
+        "gradle-конфигурация, версии, wrapper, JDK, локальные пути",
+        "AndroidManifest: permissions, exported, foreground service, provider, widget",
+        "наличие/качество тестов и фактический прогон",
+        "git: история, ветки, remotes, loose/unreachable objects",
+        "секреты/ключи в коде, внешние URL, cleartext-трафик",
+        "i18n, версионирование, документация, артефакты сборки",
+        "паттерны риска: runBlocking, !!, lateinit, TODO/FIXME"
+      ],
+      "not_checked": [
+        "ручное тестирование на устройстве/в поле (GPS, фон, виджет, SAF)",
+        "runtime-профилирование (память, FPS рендера карты, хиллшейд)",
+        "корректность GIS-алгоритмов по эталонным данным (кроме имеющихся юнит-тестов)",
+        "безопасность как пентест (только конфигурационный обзор)",
+        "iOS (кода нет), App Store требования",
+        "юридическая корректность предупреждений о запретах для мото"
+      ],
+      "positives": [
+        "чистая KMP-дисциплина: 35 expect / 176 actual, вся логика в commonMain",
+        "83 зелёных юнит-теста на критичные подсистемы (DEM, синк, астро, импорт, PDF, TileDb, топливо, трек-сравнение)",
+        "отсутствие телеметрии/аккаунтов, нет найденных хардкод-секретов",
+        "защитные механизмы: path-guard и zip-slip-guard, токен LAN, «никогда не удаляет» в SyncEngine, честные «нет данных»",
+        "документация: 11 KB dev-док + 53 KB пользовательская инструкция (27 разделов) + регрессионные инварианты",
+        "осмысленная история коммитов и релизные заметки в коммитах"
+      ],
+      "findings": [
+        {
+          "id": "F-01",
+          "severity": "P0",
+          "category": "process/backup",
+          "title": "«Remote» — локальная папка на том же диске; внешнего бэкапа и CI нет",
+          "evidence": "D:\\Azimut-Dev: git remote -v → origin D:/Azimut (fetch/push), т.е. вторая копия на том же физическом диске; .github отсутствует; 29 коммитов существуют только в D:\\Azimut-Dev\\.git и D:\\Azimut\\.git",
+          "impact": "Потеря/сбой диска = потеря и кода, и «резервной» копии, и истории. Нет воспроизводимой сборки/проверки на чистой машине.",
+          "recommendation": "Добавить настоящий внешний remote (GitHub/GitLab/self-hosted) и запушить все ветки/теги; локальный origin оставить как удобный, но не считать бэкапом; добавить минимальный CI: compile + desktopTest с GRADLE_USER_HOME-обходом."
+        },
+        {
+          "id": "F-02",
+          "severity": "P1",
+          "category": "functional/security",
+          "title": "LAN-синк с Android, вероятно, не работает из-за запрета cleartext HTTP",
+          "evidence": "LanHttpStorage.kt:20-60 использует http:// (baseUrl — syncFolderPath, напр. http://IP:port); SettingsScreen.kt:1163 создаёт LanHttpStorage на обеих платформах; AndroidManifest.xml не содержит android:usesCleartextTraffic и networkSecurityConfig (res/xml содержит только file_paths.xml и recording_widget_info.xml); targetSdk 35 → cleartext блокируется по умолчанию с API 28",
+          "impact": "Сценарий «телефон синхронизируется с ПК по Wi-Fi» падает с SecurityException/«Cleartext HTTP traffic not permitted»; токен и данные и так идут открытым текстом.",
+          "recommendation": "Либо network_security_config.xml с cleartext только для приватных диапазонов/localhost через domain-config, либо перейти на HTTPS с самоподписанным сертификатом + trust-anchor, либо задокументировать как desktop-only и убрать кнопку на Android. Проверить на реальном устройстве."
+        },
+        {
+          "id": "F-03",
+          "severity": "P1",
+          "category": "portability/claim",
+          "title": "iOS заявлен, но iosMain пуст (0 .kt файлов)",
+          "evidence": "composeApp/src/iosMain содержит только пустые каталоги; build.gradle.kts добавляет iosX64/iosArm64/iosSimulatorArm64 только на macOS; 35 expect без iOS-actual",
+          "impact": "Сборка под iOS невозможна; формулировка «архитектура готова» вводит в заблуждение (нет ни одного actual, нет iOS-специфики: CLLocationManager, Files, WidgetKit).",
+          "recommendation": "Либо явно пометить iOS как «не начато» в AZIMUT-DEV.md/INSTRUKCIYA.md, либо сделать вертикальный срез: 35 actual + минимальный запуск на симуляторе (требуется Mac)."
+        },
+        {
+          "id": "F-04",
+          "severity": "P1",
+          "category": "release/versioning",
+          "title": "Версии рассинхронизированы: код 0.4.1, релизные артефакты 1.0.0–1.3",
+          "evidence": "D:\\Azimut-Dev: versionName 0.4.1 / versionCode 8 (build.gradle.kts:78-79); артефактов в Dev нет, они лежат в D:\\Azimut\\dist (Azimuth-1.0.0-setup.exe/.msi/-portable.zip/.exe, Azimuth-1.1/1.2/1.3-debug.apk, Azimut-0.1.0-release-unsigned.apk); INSTRUKCIYA.md:9 «Версия 0.4.1», :37-40 перечисляет файлы 1.0.0, :50 называет актуальной сборкой Azimuth-1.3-debug.apk",
+          "impact": "Пользователь не понимает, что ставить; невозможно сопоставить APK/EXE с коммитом; инструкция ссылается на артефакты, которых нет рядом с актуальным кодом.",
+          "recommendation": "Ввести единую схему (versionName = имя артефактов), собирать релизы из D:\\Azimut-Dev, очистить dist/ от старых сборок, печатать git-хеш; версию брать из BuildConfig/единого AppInfo."
+        },
+        {
+          "id": "F-05",
+          "severity": "P1",
+          "category": "maintainability",
+          "title": "Версия продублирована в трёх UI-файлах",
+          "evidence": "D:\\Azimut-Dev: AboutScreen.kt:47 \"0.4.1\"; SettingsScreen.kt:1317 InfoRow(... \"0.4.1\"); HelpScreen.kt:361 \"Ограничения версии 0.4.1\"",
+          "impact": "При релизе легко забыть одно место (уже есть расхождение с dist).",
+          "recommendation": "Единый AppInfo.VERSION (генерировать из Gradle или один const), использовать везде; тест на совпадение с versionName."
+        },
+        {
+          "id": "F-06",
+          "severity": "P1",
+          "category": "architecture",
+          "title": "God-objects: MapScreen 2171 + SettingsScreen 1403 = ~28% commonMain",
+          "evidence": "LOC в D:\\Azimut-Dev: MapScreen.kt 2171, SettingsScreen.kt 1403 при commonMain 12602; рефакторинг 0.4.0/bffb653 вынес MapRouteDialog.kt (306) и MapContextMenu.kt (158), но сам экран остался >2000 строк",
+          "impact": "Высокая стоимость изменений, конфликты, невозможность UI-тестов, регрессии в самом нагруженном экране.",
+          "recommendation": "Продолжить извлечение из MapScreen: оверлеи/слои, диалог точки, запись, нижние панели; из SettingsScreen: секции в отдельные composable-файлы. Целевой предел ~600–800 строк на файл, без изменения поведения."
+        },
+        {
+          "id": "F-07",
+          "severity": "P1",
+          "category": "testing",
+          "title": "Тесты только desktopTest; Android-код (2853 LOC) и Compose UI не покрыты",
+          "evidence": "18 тестовых файлов, все в composeApp/src/desktopTest; commonTest/androidTest/UI-тестов нет; Android-специфика: TrackingService, PlatformMap.android 669, VoiceNotes, RecordingWidgetProvider; 83 теста зелёные (проверено с --rerun-tasks)",
+          "impact": "Фоновая запись, SAF, виджет, геотеги фото и Android-рендер карты проверяются только вручную; регрессии ловятся в поле.",
+          "recommendation": "1) commonTest для чистой логики, которую сейчас тестируют через desktop; 2) instrumentation-тесты на TrackingService/SAF/виджет; 3) Compose UI smoke-тесты для навигации и ключевых диалогов."
+        },
+        {
+          "id": "F-08",
+          "severity": "P2",
+          "category": "repo-hygiene",
+          "title": "Репозиторий раздут: 533 MB .git, 231 unreachable blob (649 MB), без pack-файлов",
+          "evidence": "D:\\Azimut-Dev и D:\\Azimut: git count-objects -vH → 533 MiB, 1377 loose, 0 packs; git fsck --unreachable → 270 объектов, из них 231 blob = 651.4 MB; максимальный достижимый blob — 0.4 MB (INSTRUKCIYA.pdf). Локальный clone скопировал и недостижимые объекты.",
+          "impact": "Медленные операции git, риск путаницы, тяжёлое клонирование/бэкап; мусор появился от неудачных add крупных артефактов (dist/portable-test/app).",
+          "recommendation": "После F-01 (внешний remote/бэкап): git gc --prune=now --aggressive, затем git repack -ad; проверить, что исключённые папки не попадут снова (.gitignore уже покрывает dist/, portable-test/, /app/, phone-import/)."
+        },
+        {
+          "id": "F-09",
+          "severity": "P2",
+          "category": "build-portability",
+          "title": "Сборка привязана к машине и кириллическому профилю",
+          "evidence": "D:\\Azimut-Dev: gradle.properties: -Djava.io.tmpdir=D:/Azimut-Dev/.gradle-tmp; local.properties: sdk.dir с абсолютным путём C:/Users/Александр/...; AZIMUT-DEV.md:15-21 требует GRADLE_USER_HOME=D:\\Azimut-Dev\\.gradle-home из-за падения тестового воркера; wrapper без distributionSha256Sum",
+          "impact": "Проект не собирается у другого разработчика/в CI без правок; тесты не запускаются «по умолчанию».",
+          "recommendation": "Убрать java.io.tmpdir из gradle.properties (перенести в локальный gradle.properties в GRADLE_USER_HOME), добавить distributionSha256Sum, зафиксировать GRADLE_USER_HOME в локальном скрипте/CI, а не в документации."
+        },
+        {
+          "id": "F-10",
+          "severity": "P2",
+          "category": "release",
+          "title": "Нет signingConfig, minify/R8 выключен; debug APK 58.7 MB",
+          "evidence": "build.gradle.kts: release { isMinifyEnabled = false }, signingConfigs отсутствуют; dist содержит 0.1.0-release-unsigned.apk",
+          "impact": "Релизные APK не подписаны (не установить/не обновить), размер завышен, код не обфусцирован (не критично для open-source, критично для размера).",
+          "recommendation": "Настроить release signing (keystore вне репозитория, секреты в CI), включить R8 с keep-правилами для kotlinx.serialization/MapLibre/BRouter, проверить shrinkResources."
+        },
+        {
+          "id": "F-11",
+          "severity": "P2",
+          "category": "security",
+          "title": "SecretStore на Windows хранит AES-ключ рядом с данными",
+          "evidence": "AZIMUT-DEV.md:53: «Windows AES+ключ в Документы\\Azimut\\azimut.key — DPAPI из JVM недоступен»",
+          "impact": "Шифрование защищает только от случайного просмотра, не от локального злоумышленника/малвари с доступом к профилю.",
+          "recommendation": "Задокументировать как «obfuscation-grade»; опционально JNA→DPAPI/Credential Manager или Windows Hello; не позиционировать как защиту паролей."
+        },
+        {
+          "id": "F-12",
+          "severity": "P2",
+          "category": "i18n/docs",
+          "title": "Документация и артефакты регенерируются вручную (pandoc + Word COM)",
+          "evidence": "AZIMUT-DEV.md:29-33; INSTRUKCIYA.docx/pdf закоммичены; docx/pdf в git перезаписываются целиком",
+          "impact": "Doc drift (уже виден по версиям), раздувание истории, зависимость от установленного Word.",
+          "recommendation": "Генерировать docx/pdf в CI из INSTRUKCIYA.md, не коммитить бинарники (или коммитить только релизные), добавить проверку «версия в доке == versionName»."
+        },
+        {
+          "id": "F-13",
+          "severity": "P3",
+          "category": "code-health",
+          "title": "89 TODO/FIXME, 48 !!, 9 runBlocking",
+          "evidence": "подсчёт по *.kt вне build/; runBlocking — в основном desktop/тестовые пути (требует точечной проверки)",
+          "impact": "Скрытый техдолг; !! потенциально → NPE на граничных данных (JSON/файлы).",
+          "recommendation": "Инвентаризация TODO в issue-трекере; заменить !! на безопасные проверки в парсерах внешних данных (GPX/KML/GeoJSON/DEM); убедиться, что runBlocking не на main/UI-потоке."
+        },
+        {
+          "id": "F-14",
+          "severity": "P3",
+          "category": "portability",
+          "title": "Кириллические имена путей/файлов и mojibake-риски",
+          "evidence": "в корне отслеживается «промт_Азимут.txt»; каталог «мусор»; PowerShell 5.1 читает UTF-8 без BOM как ANSI → в консоли «РђР·РёРјСѓС‚»",
+          "impact": "Порча текста при скриптовой обработке, проблемы в CI/на других ОС.",
+          "recommendation": "ASCII-имена для служебных файлов, UTF-8 BOM для .md/.json при необходимости, явная -Encoding UTF8 в скриптах, .editorconfig."
+        },
+        {
+          "id": "F-15",
+          "severity": "P3",
+          "category": "dependencies",
+          "title": "Отсутствуют .editorconfig, линтер, проверка зависимостей; Gradle 9 несовместим",
+          "evidence": "нет .editorconfig/detekt/ktlint; вывод Gradle: «Deprecated Gradle features ... incompatible with Gradle 9.0»",
+          "impact": "Стиль держится вручную; обновление Gradle/AGP будет болезненным.",
+          "recommendation": "ktlint/detekt в CI, .editorconfig, план миграции Gradle 9 + AGP, фиксация версий зависимостей в libs.versions.toml (сейчас версии строками)."
+        },
+        {
+          "id": "F-16",
+          "severity": "P3",
+          "category": "docs-truth",
+          "title": "Расхождения документации с фактическим состоянием",
+          "evidence": "D:\\Azimut-Dev: AZIMUT-DEV.md:12 «unit-тесты (53)» vs :95 «83 теста» и фактически 83; AZIMUT-DEV.md:92 «iOS — архитектура готова» при 0 .kt в iosMain; INSTRUKCIYA.md:9 «0.4.1» vs :37-40 «1.0.0» и :50 «актуальная 1.3»; HelpScreen.kt:344 (ru) и :351 (en) расходятся по SOS (см. F-17)",
+          "impact": "Новый разработчик/ИИ получает противоречивые факты и делает неверные выводы.",
+          "recommendation": "Провести ревизию AZIMUT-DEV.md/INSTRUKCIYA.md, убрать дублирующие числа, добавить дату/коммит актуальности."
+        },
+        {
+          "id": "F-17",
+          "severity": "P2",
+          "category": "i18n/UX",
+          "title": "Русский и английский тексты справки расходятся по факту функционала (SOS, синк)",
+          "evidence": "HelpScreen.kt:344 ru: «Направление и расстояние до базы/сбора — на SOS-панели нет: используйте „Компас: к этой точке“» (к тому же сломанная грамматика); HelpScreen.kt:351 en: «SOS — a button in the map menu: large coordinates, altitude, time, bearing … copy and SMS». По AZIMUT-DEV.md:57 SosScreen удалён. В обоих языках в разделе синка не упомянут LAN, хотя он есть (SettingsScreen.kt:1163).",
+          "impact": "Пользователь читает взаимоисключающие инструкции; en-версия обещает несуществующую кнопку SOS/SMS.",
+          "recommendation": "Свести ru/en к единому актуальному тексту (SOS: координаты в диалоге точки + «Компас: к этой точке»; синк: папка/USB, WebDAV, LAN); добавить проверку паритета ключей/разделов справки."
+        },
+        {
+          "id": "F-18",
+          "severity": "P2",
+          "category": "performance",
+          "title": "Трек-сравнение O(N×M) без упрощения полилиний",
+          "evidence": "TrackCompare.kt:57-64: recorded.points.map { distanceToPolylineMeters(it, plannedGeo) } — каждый записанный пункт сверяется со всеми сегментами плана; Douglas-Peucker (TrackSimplify) не применяется; комментарий обещает Dispatchers.Default, но нет ни прогресса, ни отмены; вызов из JournalScreen.kt",
+          "impact": "На длинных треках (10k записанных × 5k плановых = ~50M расстояний) сравнение заметно подвешивает журнал и жжёт батарею; нет индикатора, что расчёт идёт.",
+          "recommendation": "Упростить обе линии TrackSimplify (1.5 м уже есть) перед сравнением, отсекать сегменты по bbox/грубому индексу, ограничить N×M; добавить бенчмарк-тест на 10k×5k и прогресс/отмену."
+        },
+        {
+          "id": "F-19",
+          "severity": "P3",
+          "category": "gis-correctness",
+          "title": "Точки reserve/empty в FuelRange привязаны к вершинам маршрута, без интерполяции",
+          "evidence": "FuelRange.kt:56-70: при первом acc >= порога в качестве cut берётся routePoints[i] (вершина), хотя пересечение происходит внутри сегмента; дистанции — суммарные прямые отрезки полилинии",
+          "impact": "Метка «кончится бензин» может стоять на десятки–сотни метров позже фактической точки (особенно на длинных прямых сегментах); для эндуро это существенно.",
+          "recommendation": "Интерполировать точку внутри сегмента по отношению (порог − acc_before) / длина_сегмента; unit-тест на маршрут из 2 точек с известным ответом."
+        },
+        {
+          "id": "F-20",
+          "severity": "P2",
+          "category": "process",
+          "title": "Две параллельные рабочие копии на одной ветке, разные версии",
+          "evidence": "D:\\Azimut-Dev (0.4.1, e6085c7) с origin → D:/Azimut; D:\\Azimut (0.3.4, 2dcdeb8) — одновременно «origin» и старая рабочая копия; обе на ветке opencode/poi-scale; релизные артефакты и phone-import/dist/app есть только в старой",
+          "impact": "Риск править/собирать не ту копию, путаница «где актуальная версия», расхождение документации (INSTRUKCIYA.md есть в обеих) и артефактов.",
+          "recommendation": "Оставить один канонический рабочий каталог + внешний remote; старую копию превратить в bare-mirror/архив (git clone --mirror) без рабочего дерева; путь канонической копии зафиксировать в AZIMUT-DEV.md."
+        }
+      ],
+      "summary_by_severity": { "P0": 1, "P1": 6, "P2": 8, "P3": 5 },
+      "top_5_actions": [
+        "F-01/F-20: внешний remote + push + CI; одна каноническая копия (сейчас «remote» — папка на том же диске)",
+        "F-02: проверить LAN-синк на Android и починить политику cleartext",
+        "F-04/F-05: единый источник версии, чистка dist, соответствие артефактов коммиту",
+        "F-03: честно обозначить статус iOS или сделать вертикальный срез",
+        "F-06/F-07: декомпозиция MapScreen/SettingsScreen + тесты (commonTest, Android instrumentation)"
+      ]
+    },
+    "task": {
+      "primary": "Проведи независимый аудит проекта «Азимут» 0.4.1 (D:\\Azimut-Dev) на основе этого описания и списка findings. Для каждого finding укажи: подтверждаю / опровергаю / недостаточно данных, с обоснованием и ссылкой на файл/строку. Найди минимум 5 дополнительных проблем, которых нет в списке (архитектура, GIS-корректность, UX в поле, энергопотребление, приватность, юридические риски для мото). Выдай приоритизированный план исправлений.",
+      "questions": [
+        "Какие findings действительно блокируют релиз 1.0, а какие можно отложить?",
+        "Есть ли в GIS-подсистеме (DEM, солнечные расчёты, ООПТ, роутинг) логические ошибки, видимые по описанию архитектуры?",
+        "Какие 5 изменений дадут максимальный эффект при минимальном риске?",
+        "Что из «известных ограничений» на самом деле является дефектом (например, броды только из OSM-роутинга, relations в Overpass)?",
+        "Как организовать тестирование фоновой записи и SAF без ручных прогонов в поле?",
+        "Какие метрики/логи (локальные, без телеметрии) нужны, чтобы ловить полевые сбои?"
+      ],
+      "deliverables": [
+        "таблица verdicts по F-01..F-20 (подтверждено/опровергнуто/недостаточно данных + обоснование)",
+        "список новых findings с severity и evidence",
+        "план P0/P1/P2: задача → файлы → суть патча → тест → оценка (S/M/L)",
+        "проект минимального CI-пайплайна (yaml) под этот проект с учётом GRADLE_USER_HOME-обхода",
+        "чеклист релиза 1.0 (версии, подпись, артефакты, документация)"
+      ],
+      "constraints": [
+        "не предлагать смену стека (KMP/CMP) и переписывание с нуля",
+        "не ломать инварианты из architecture.invariants",
+        "offline-first и отсутствие телеметрии — обязательны",
+        "учитывать оба таргета: Android (minSdk 26) и Windows JVM 17",
+        "предложения должны быть выполнимы без Mac (кроме явно помеченных iOS-задач)",
+        "не выдумывать URL, API и факты о коде: если данных нет — писать «недостаточно данных»"
+      ],
+      "output_format": {
+        "type": "json",
+        "schema_hint": {
+          "verdicts": [{ "id": "F-01", "verdict": "confirmed|refuted|insufficient_data", "reason": "string", "evidence": "string" }],
+          "new_findings": [{ "id": "N-01", "severity": "P0|P1|P2|P3", "title": "string", "evidence": "string", "impact": "string", "recommendation": "string" }],
+          "plan": [{ "priority": "P0|P1|P2", "task": "string", "files": ["string"], "patch_summary": "string", "test": "string", "effort": "S|M|L" }],
+          "ci_yaml": "string",
+          "release_checklist": ["string"],
+          "open_questions": ["string"]
+        }
+      }
+    },
+    "acceptance_criteria": [
+      "каждый verdict опирается на конкретный файл/строку или на факт из metrics",
+      "нет выдуманных файлов, API и URL",
+      "минимум 5 новых findings, не повторяющих F-01..F-20",
+      "план содержит не более 7 пунктов P0/P1 и для каждого — тест",
+      "учтены оба таргета и offline-first"
+    ],
+    "user_note": "Аудит охватывает обе копии: активную D:\\Azimut-Dev (HEAD e6085c7, 0.4.1) и origin D:\\Azimut (0.3.4). Проверено фактически: desktopTest --rerun-tasks — BUILD SUCCESSFUL за 32 с, 83/83 passed (19 suites). Артефактов dist/ в D:\\Azimut-Dev нет — релизы лежат в D:\\Azimut\\dist."
+  }
+}

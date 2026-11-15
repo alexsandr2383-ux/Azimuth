@@ -1,0 +1,32 @@
+{
+  "version": 8,
+  "name": "Azimuth Street",
+  "sources": {
+    "street": {
+      "type": "raster",
+      "tiles": [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+      ],
+      "tileSize": 256,
+      "minzoom": 0,
+      "maxzoom": 16,
+      "attribution": "© Esri, HERE, Garmin, OSM contributors"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#1b2416"
+      }
+    },
+    {
+      "id": "street",
+      "type": "raster",
+      "source": "street",
+      "minzoom": 0,
+      "maxzoom": 22
+    }
+  ]
+}

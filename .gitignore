@@ -1,0 +1,41 @@
+.gradle/
+build/
+**/build/
+.tools/
+local.properties
+*.iml
+.idea/
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+
+# Build artifacts and local test bundles
+dist/
+portable-test/
+
+# Ad-hoc logs and scratch files
+*.log
+build_compile*.txt
+buildout.txt
+c[0-9]*.txt
+err[0-9]*.txt
+readmap*.py
+*.bad
+
+# Files pulled from the phone (personal data)
+phone-import/
+
+# Standalone desktop build used by the desktop shortcut
+/app/
+
+# Local trash folder (audit)
+/мусор/
+
+# Local POI research data (Overpass fetches)
+/.poi/
+
+# Test-runner home (workaround for the Cyrillic-username Gradle worker issue)
+/.gradle-home/
+/.gradle-tmp/

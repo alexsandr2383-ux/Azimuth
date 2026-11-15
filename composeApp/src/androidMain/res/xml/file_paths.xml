@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lets the camera app write photos straight into NavData/photos/. -->
+<paths>
+    <external-files-path name="navdata" path="NavData/" />
+    <files-path name="navdata_internal" path="NavData/" />
+</paths>
