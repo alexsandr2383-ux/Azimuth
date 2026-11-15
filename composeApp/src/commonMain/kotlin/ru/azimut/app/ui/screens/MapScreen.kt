@@ -210,6 +210,8 @@ fun MapScreen(
     var message by remember { mutableStateOf<String?>(null) }
     var showExit by remember { mutableStateOf(false) }
     var showGoto by remember { mutableStateOf(false) }
+    var showStartRecording by remember { mutableStateOf(false) }
+    var showStopRecording by remember { mutableStateOf(false) }
     var gotoText by remember { mutableStateOf("") }
     var gotoTarget by remember { mutableStateOf<GeoPoint?>(null) }
     var gotoKey by remember { mutableStateOf(0) }
@@ -1019,7 +1021,7 @@ fun MapScreen(
             HoverTooltip(if (recorder.recording) stopRecordingTooltip else startRecordingTooltip) {
                 FilledIconButton(
                     onClick = {
-                        if (recorder.recording) RecordingControl.stop() else RecordingControl.start(settings)
+                        if (recorder.recording) showStopRecording = true else showStartRecording = true
                     },
                     modifier = Modifier.size(recordSize),
                     colors = IconButtonDefaults.filledIconButtonColors(
@@ -1647,6 +1649,21 @@ fun MapScreen(
             }
         }
         }
+    }
+
+    if (showStartRecording) {
+        StartRecordingDialog(
+            settings = settings,
+            onSettingsChange = onSettingsChange,
+            onStart = { showStartRecording = false; RecordingControl.start(settings) },
+            onDismiss = { showStartRecording = false },
+        )
+    }
+    if (showStopRecording) {
+        StopRecordingDialog(
+            onStop = { showStopRecording = false; RecordingControl.stop() },
+            onDismiss = { showStopRecording = false },
+        )
     }
 
     if (showGoto) {
