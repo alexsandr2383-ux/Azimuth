@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -62,6 +63,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.shadow
+import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -955,16 +958,25 @@ fun MapScreen(
                 .align(Alignment.TopStart)
                 .padding(top = 10.dp, start = 10.dp)
                 .gestureBarrier(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = 2.dp,
+            shape = MapButtonShape,
+            color = MapPanelColor,
+            contentColor = MapPanelContent,
+            shadowElevation = 4.dp,
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                Text(
+                    formatSpeed(current?.speed),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                )
+                Text(
+                    current?.altitude?.let { "▲ ${it.roundToInt()} " + tr("м", "m") } ?: "▲ —",
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Icon(
                     Icons.Filled.SatelliteAlt,
                     contentDescription = tr("Спутники", "Satellites"),
@@ -1023,17 +1035,26 @@ fun MapScreen(
                     onClick = {
                         if (recorder.recording) showStopRecording = true else showStartRecording = true
                     },
-                    modifier = Modifier.size(recordSize),
+                    modifier = Modifier.size(recordSize).shadow(4.dp, MapButtonShape),
+                    shape = MapButtonShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = if (recorder.recording) Color(0xFFD32F2F) else Color(0xFF2E7D32),
-                        contentColor = Color.White,
+                        containerColor = if (recorder.recording) MapRecordRed else MapPanelColor,
+                        contentColor = if (recorder.recording) Color.White else MapPanelContent,
                     ),
                 ) {
-                    Icon(
-                        imageVector = if (recorder.recording) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = if (recorder.recording) tr("Остановить", "Stop") else tr("Записать", "Record"),
-                        modifier = Modifier.size(if (compact) 26.dp else 32.dp),
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = if (recorder.recording) Icons.Filled.Stop else Icons.Filled.FiberManualRecord,
+                            contentDescription = if (recorder.recording) tr("Остановить", "Stop") else tr("Записать", "Record"),
+                            tint = if (recorder.recording) Color.White else MapRecordRed,
+                            modifier = Modifier.size(if (compact) 20.dp else 24.dp),
+                        )
+                        Text(
+                            if (recorder.recording) "STOP" else "REC",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        )
+                    }
                 }
             }
 
@@ -1063,6 +1084,61 @@ fun MapScreen(
                     tr("Скачать видимую область", "Download visible area"),
                     size = controlSize,
                 ) { areaDownload++ }
+            }
+
+            Box {
+                MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    if (settings.menuDetailed) {
+                        DropdownMenuItem(
+                            text = { Text(tr("К координатам", "Go to coordinates")) },
+                            leadingIcon = { Icon(Icons.Filled.Navigation, null) },
+                            onClick = { showMenu = false; showGoto = true },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(tr("Точки", "Waypoints")) },
+                        leadingIcon = { Icon(Icons.Filled.Place, null) },
+                        onClick = { showMenu = false; onOpenPoints() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(tr("Журнал поездок", "Trip journal")) },
+                        leadingIcon = { Icon(Icons.Filled.List, null) },
+                        onClick = { showMenu = false; onOpenJournal() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(tr("Настройки", "Settings")) },
+                        leadingIcon = { Icon(Icons.Filled.Settings, null) },
+                        onClick = { showMenu = false; onOpenSettings() },
+                    )
+                    if (settings.menuDetailed) {
+                        DropdownMenuItem(
+                            text = { Text(tr("Справка", "Help")) },
+                            leadingIcon = { Icon(Icons.Filled.Help, null) },
+                            onClick = { showMenu = false; onOpenHelp() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(tr("О приложении", "About")) },
+                            leadingIcon = { Icon(Icons.Filled.Info, null) },
+                            onClick = { showMenu = false; onOpenAbout() },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (settings.menuDetailed) {
+                                    tr("Компактный вид", "Compact view")
+                                } else {
+                                    tr("Подробный вид", "Detailed view")
+                                }
+                            )
+                        },
+                        leadingIcon = { Icon(Icons.Filled.ExpandMore, null) },
+                        onClick = {
+                            onSettingsChange(settings.copy(menuDetailed = !settings.menuDetailed))
+                        },
+                    )
+                }
             }
 
             if (controlsExpanded) {
@@ -1301,60 +1377,6 @@ fun MapScreen(
                 }
             }
 
-            Box {
-                MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    if (settings.menuDetailed) {
-                        DropdownMenuItem(
-                            text = { Text(tr("К координатам", "Go to coordinates")) },
-                            leadingIcon = { Icon(Icons.Filled.Navigation, null) },
-                            onClick = { showMenu = false; showGoto = true },
-                        )
-                    }
-                    DropdownMenuItem(
-                        text = { Text(tr("Точки", "Waypoints")) },
-                        leadingIcon = { Icon(Icons.Filled.Place, null) },
-                        onClick = { showMenu = false; onOpenPoints() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(tr("Журнал поездок", "Trip journal")) },
-                        leadingIcon = { Icon(Icons.Filled.List, null) },
-                        onClick = { showMenu = false; onOpenJournal() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(tr("Настройки", "Settings")) },
-                        leadingIcon = { Icon(Icons.Filled.Settings, null) },
-                        onClick = { showMenu = false; onOpenSettings() },
-                    )
-                    if (settings.menuDetailed) {
-                        DropdownMenuItem(
-                            text = { Text(tr("Справка", "Help")) },
-                            leadingIcon = { Icon(Icons.Filled.Help, null) },
-                            onClick = { showMenu = false; onOpenHelp() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(tr("О приложении", "About")) },
-                            leadingIcon = { Icon(Icons.Filled.Info, null) },
-                            onClick = { showMenu = false; onOpenAbout() },
-                        )
-                    }
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (settings.menuDetailed) {
-                                    tr("Компактный вид", "Compact view")
-                                } else {
-                                    tr("Подробный вид", "Detailed view")
-                                }
-                            )
-                        },
-                        leadingIcon = { Icon(Icons.Filled.ExpandMore, null) },
-                        onClick = {
-                            onSettingsChange(settings.copy(menuDetailed = !settings.menuDetailed))
-                        },
-                    )
-                }
-            }
             }
 
             MapControl(
@@ -1393,6 +1415,7 @@ fun MapScreen(
             })
                 .onSizeChanged { bottomPanelHeightPx = it.height }
                 .heightIn(max = panelMaxHeight)
+                .navigationBarsPadding()
                 .padding(start = 10.dp, top = 10.dp, end = 70.dp, bottom = 10.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1401,8 +1424,8 @@ fun MapScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    color = MapPanelColor,
+                    contentColor = MapPanelContent,
                     tonalElevation = 2.dp,
                 ) {
                     Row(
@@ -1588,8 +1611,8 @@ fun MapScreen(
                     .fillMaxWidth()
                     .clickable { infoExpanded = !infoExpanded },
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
+                color = MapPanelColor,
+                contentColor = MapPanelContent,
                 tonalElevation = 2.dp,
             ) {
                 Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {

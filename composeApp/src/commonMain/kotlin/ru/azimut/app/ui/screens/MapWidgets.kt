@@ -78,6 +78,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -154,6 +155,14 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
+/** Guru-style map overlay palette: light panels with dark icons on any map. */
+internal val MapPanelColor = androidx.compose.ui.graphics.Color(0xFFF7F7F7)
+internal val MapPanelContent = androidx.compose.ui.graphics.Color(0xFF1C1C1E)
+internal val MapAccent = androidx.compose.ui.graphics.Color(0xFF007AFF)
+internal val MapAccentSoft = androidx.compose.ui.graphics.Color(0xFFD6E8FF)
+internal val MapRecordRed = androidx.compose.ui.graphics.Color(0xFFE53935)
+internal val MapButtonShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+
 @Composable
 internal fun MapControl(
     icon: ImageVector,
@@ -166,12 +175,11 @@ internal fun MapControl(
     HoverTooltip(contentDescription) {
         FilledIconButton(
             onClick = onClick,
-            modifier = Modifier.size(size),
+            modifier = Modifier.size(size).shadow(4.dp, MapButtonShape),
+            shape = MapButtonShape,
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = if (active) MaterialTheme.colorScheme.secondary
-                else MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                contentColor = if (active) MaterialTheme.colorScheme.onSecondary
-                else MaterialTheme.colorScheme.onSurface,
+                containerColor = if (active) MapAccentSoft else MapPanelColor,
+                contentColor = if (active) MapAccent else MapPanelContent,
             ),
         ) {
             Icon(icon, contentDescription, Modifier.rotate(iconRotation))

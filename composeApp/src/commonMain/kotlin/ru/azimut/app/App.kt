@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -442,10 +443,12 @@ fun App() {
                 contentColor = MaterialTheme.colorScheme.onBackground,
             ) {
             androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
-                // Phone layout: bottom bar Карта|Точки|Журнал|Ещё (width-adaptive,
-                // desktop keeps full-screen navigation via the map menu).
-                val showBottomBar = maxWidth < 600.dp
-                Column(Modifier.fillMaxSize()) {
+                // Navigation lives in the map's right rail menu; non-map screens keep clear of the system bar.
+                Column(
+                    Modifier.fillMaxSize().then(
+                        if (screen == Screen.Map) Modifier else Modifier.navigationBarsPadding()
+                    )
+                ) {
                     Box(Modifier.weight(1f)) {
                         when (screen) {
                 Screen.Map -> MapScreen(
@@ -555,9 +558,6 @@ fun App() {
 
                 Screen.About -> AboutScreen(onBack = { goBack() })
                     }
-                    }
-                    if (showBottomBar) {
-                        ru.azimut.app.ui.components.AppBottomNav(screen = screen, onNavigate = ::navigate)
                     }
                 }
             }
