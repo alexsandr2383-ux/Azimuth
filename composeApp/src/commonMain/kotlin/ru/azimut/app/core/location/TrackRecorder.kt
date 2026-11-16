@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.toLocalDateTime
 import ru.azimut.app.core.model.GeoPoint
 import ru.azimut.app.core.model.Track
 import ru.azimut.app.core.model.TrackPoint
@@ -279,10 +280,25 @@ object TrackRecorder {
 
 private fun TrackState.toTrack(continueId: String?): Track {
     val now = Clock.System.now().toEpochMilliseconds()
+    // The default "Трек 776000" carries no information; at save time it becomes
+    // "Трек dd.MM · длина". A user-chosen name is kept as is.
+    val defaultName = Regex("^Трек \\d{6}$").matches(name) || name.isBlank()
+    val resolvedName = if (defaultName) {
+        val dt = kotlinx.datetime.Instant.fromEpochMilliseconds(if (startedAt > 0) startedAt else now)
+            .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        val lenText = if (distanceMeters >= 950) {
+            "%.1f км".format(distanceMeters / 1000)
+        } else {
+            "${distanceMeters.toInt()} м"
+        }
+        "Трек ${dt.dayOfMonth.toString().padStart(2, '0')}.${dt.monthNumber.toString().padStart(2, '0')} · $lenText"
+    } else {
+        name
+    }
     return Track(
         // A continued recording overwrites the original journal file (same id).
         id = continueId ?: "track-$startedAt-${profile}",
-        name = name.ifBlank { "Трек" },
+        name = resolvedName.ifBlank { "Трек" },
         profile = profile,
         startedAt = if (startedAt > 0) startedAt else now,
         points = points,

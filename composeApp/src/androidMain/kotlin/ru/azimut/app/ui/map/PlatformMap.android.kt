@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -82,6 +83,10 @@ actual fun PlatformMap(
     gotoKey: Int,
     hillshadeTiles: List<ru.azimut.app.core.dem.HillshadeTile>,
     headingDegrees: Float?,
+    corridorKey: Int,
+    corridorBounds: Pair<GeoPoint, GeoPoint>?,
+    corridorMaxZoom: Int,
+    onCorridorProgress: (Long, Long, Boolean, Boolean) -> Unit,
     onDownloadCorridorDone: () -> Unit,
     onTap: (GeoPoint) -> Unit,
     onSecondaryTap: (GeoPoint, Offset) -> Unit,
@@ -435,23 +440,72 @@ actual fun PlatformMap(
     // Visible-area offline download: the mobile counterpart of the desktop "Download" button.
     // MapLibre keeps the tiles in its own offline database, so the map serves them with no network.
     val areaProgressState by rememberUpdatedState(onAreaDownloadProgress)
+    val corridorProgressState by rememberUpdatedState(onCorridorProgress)
+    val corridorMaxZoomState by rememberUpdatedState(corridorMaxZoom)
+    val corridorBoundsState by rememberUpdatedState(corridorBounds)
+    var corridorRegion by remember { mutableStateOf<OfflineRegion?>(null) }
+    LaunchedEffect(corridorKey) {
+        if (corridorKey == 0) return@LaunchedEffect
+        val target = map ?: return@LaunchedEffect
+        if (corridorRegion != null) return@LaunchedEffect // one region at a time
+        val bounds = corridorBoundsState ?: return@LaunchedEffect
+        val style = MapStyles.byId(styleState)
+        val styleUrl = offlineStyleUrl(context, style, layerState == "satellite")
+            ?: return@LaunchedEffect
+        val definition = OfflineTilePyramidRegionDefinition(
+            styleUrl,
+            LatLngBounds.Builder()
+                .include(LatLng(bounds.first.lat, bounds.first.lon))
+                .include(LatLng(bounds.second.lat, bounds.second.lon))
+                .build(),
+            8.0,
+            corridorMaxZoomState.toDouble().coerceAtLeast(8.0),
+            context.resources.displayMetrics.density,
+        )
+        OfflineManager.getInstance(context).createOfflineRegion(
+            definition,
+            ByteArray(0),
+            object : OfflineManager.CreateOfflineRegionCallback {
+                override fun onCreate(region: OfflineRegion) {
+                    corridorRegion = region
+                    region.setObserver(object : OfflineRegion.OfflineRegionObserver {
+                        override fun onStatusChanged(status: OfflineRegionStatus) {
+                            corridorProgressState(
+                                status.completedResourceCount,
+                                status.requiredResourceCount,
+                                status.isComplete,
+                                false,
+                            )
+                            if (status.isComplete) corridorRegion = null
+                        }
+
+                        override fun onError(error: OfflineRegionError) {
+                            corridorProgressState(0, 0, false, true)
+                            corridorRegion = null
+                        }
+
+                        override fun mapboxTileCountLimitExceeded(limit: Long) {
+                            corridorProgressState(0, limit, false, true)
+                            corridorRegion = null
+                        }
+                    })
+                    region.setDownloadState(OfflineRegion.STATE_ACTIVE)
+                }
+
+                override fun onError(error: String) {
+                    corridorProgressState(0, 0, false, true)
+                }
+            },
+        )
+    }
     var offlineRegion by remember { mutableStateOf<OfflineRegion?>(null) }
     LaunchedEffect(areaDownloadKey) {
         if (areaDownloadKey == 0) return@LaunchedEffect
         val target = map ?: return@LaunchedEffect
         if (offlineRegion != null) return@LaunchedEffect // one region at a time
         val style = MapStyles.byId(styleState)
-        val styleUrl = when {
-            layerState == "satellite" -> STYLE_SAT
-            style.localPath != null -> return@LaunchedEffect // local .mbtiles: nothing to fetch
-            else -> {
-                // OfflineManager needs a style URL, not a JSON string: dump the raster
-                // style to a cache file and point the definition at it.
-                val file = File(context.cacheDir, "offline-style-${style.id}.json")
-                file.writeText(baseStyleJson(style))
-                "file://${file.absolutePath}"
-            }
-        }
+        val styleUrl = offlineStyleUrl(context, style, layerState == "satellite")
+            ?: return@LaunchedEffect
         val zoom = target.cameraPosition.zoom
         val definition = OfflineTilePyramidRegionDefinition(
             styleUrl,
@@ -693,6 +747,29 @@ internal fun gradeBucket(percent: Float): Int = when {
 }
 
 private const val STYLE_SAT = "asset://map_style_sat.json"
+
+/**
+ * Offline regions cannot fetch asset:// style URLs, so any style used for an
+ * offline download is dumped to a cache file and referenced via file://.
+ */
+private fun offlineStyleUrl(context: android.content.Context, style: MapStyle, satellite: Boolean): String? {
+    if (style.localPath != null) return null // local .mbtiles: nothing to fetch
+    val file = if (satellite) {
+        File(context.cacheDir, "offline-style-sat.json")
+    } else {
+        File(context.cacheDir, "offline-style-${style.id}.json")
+    }
+    if (!file.exists()) {
+        file.writeText(
+            if (satellite) {
+                context.assets.open("map_style_sat.json").use { inp -> inp.readBytes().decodeToString() }
+            } else {
+                baseStyleJson(style)
+            },
+        )
+    }
+    return "file://${file.absolutePath}"
+}
 
 private fun styleKey(mapLayer: String, mapStyle: String): String =
     if (mapLayer == "satellite") "satellite" else "base:$mapStyle"

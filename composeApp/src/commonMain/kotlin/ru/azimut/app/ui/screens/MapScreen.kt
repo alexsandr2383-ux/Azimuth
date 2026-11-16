@@ -658,7 +658,18 @@ fun MapScreen(
     fun defaultPlanName(): String = planNamePrefix + " " + shortDateTime(Clock.System.now().toEpochMilliseconds())
     fun planOf(result: RouteResult, name: String): Track {
         val now = Clock.System.now().toEpochMilliseconds()
-        return result.toPlannedTrack("plan-$now", name.ifBlank { defaultPlanName() }, routeProfile, now)
+        val track = result.toPlannedTrack("plan-$now", name.ifBlank { defaultPlanName() }, routeProfile, now)
+        // Default "Маршрут 13.11 01:20" tells nothing; plans get "Маршрут dd.MM · длина".
+        val isDefault = name.isBlank() || name.startsWith(planNamePrefix)
+        return if (isDefault) {
+            val dt = kotlinx.datetime.Instant.fromEpochMilliseconds(now)
+                .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+            val two: (Int) -> String = { it.toString().padStart(2, '0') }
+            track.copy(name = "${planNamePrefix} ${two(dt.dayOfMonth)}.${two(dt.monthNumber)} · " +
+                "%.1f км".format(track.distanceMeters / 1000))
+        } else {
+            track
+        }
     }
 
     fun clearRoute() {
@@ -755,6 +766,39 @@ fun MapScreen(
             }
         }
         var areaDownload by remember { mutableStateOf(0) }
+        var corridorKey by remember { mutableStateOf(0) }
+        var corridorBounds by remember { mutableStateOf<Pair<GeoPoint, GeoPoint>?>(null) }
+        var corridorMaxZoom by remember { mutableStateOf(15) }
+        var corridorProgress by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+        val corridorDoneMessage = tr("Карты вдоль маршрута сохранены.", "Route maps saved.")
+        val corridorFailedMessage = tr(
+            "Не удалось скачать карты маршрута (возможно, слишком большая область).",
+            "Could not download route maps (the area may be too large).",
+        )
+        // Mobile «Карты вдоль маршрута»: bbox of the track with ~2 km padding, zoom cap
+        // scales with the area so a long route does not request tens of thousands of tiles.
+        val corridorShortMessage = tr("Маршрут слишком короткий.", "The route is too short.")
+        fun requestCorridor(track: Track) {
+            val pts = track.points
+            if (pts.size < 2) {
+                message = corridorShortMessage
+                return
+            }
+            val minLat = pts.minOf { it.lat }
+            val maxLat = pts.maxOf { it.lat }
+            val minLon = pts.minOf { it.lon }
+            val maxLon = pts.maxOf { it.lon }
+            val pad = 0.02
+            val span = maxOf(maxLat - minLat + 2 * pad, maxLon - minLon + 2 * pad)
+            corridorMaxZoom = when {
+                span > 2.0 -> 12
+                span > 1.0 -> 13
+                span > 0.4 -> 14
+                else -> 15
+            }
+            corridorBounds = GeoPoint(minLat - pad, minLon - pad) to GeoPoint(maxLat + pad, maxLon + pad)
+            corridorKey++
+        }
         // --- Hillshade tiles around the viewport centre (A4 companion / DEM shading) ---
         val c0 = camera
         val hillshadeKey = if (settings.hillshade && c0 != null && c0.zoom >= 9.0) {
@@ -902,6 +946,22 @@ fun MapScreen(
             headingDegrees = heading
                 ?: recorder.lastFix?.bearing?.takeIf { (recorder.lastFix?.speed ?: 0f) > 1.5f },
             areaDownloadKey = areaDownload,
+            corridorKey = corridorKey,
+            corridorBounds = corridorBounds,
+            corridorMaxZoom = corridorMaxZoom,
+            onCorridorProgress = { downloaded, total, complete, error ->
+                when {
+                    error -> {
+                        corridorProgress = null
+                        message = corridorFailedMessage
+                    }
+                    complete -> {
+                        corridorProgress = null
+                        message = corridorDoneMessage
+                    }
+                    else -> corridorProgress = downloaded to total
+                }
+            },
             onAreaDownloadProgress = { downloaded, total, complete, error ->
                 message = when {
                     error -> areaDownloadFailedMessage
@@ -1130,6 +1190,22 @@ fun MapScreen(
             points = recorder.points.size,
             onRecPressed = { onRecPressed() },
         )
+
+        corridorProgress?.let { (d, ttl) ->
+            Surface(
+                modifier = Modifier.gestureBarrier(),
+                shape = MapButtonShape,
+                color = MapPanelColor,
+                contentColor = MapPanelContent,
+                shadowElevation = 4.dp,
+            ) {
+                Text(
+                    tr("Карты маршрута: ", "Route maps: ") + "$d/$ttl",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
         }
 
         pickTarget?.let { target ->
@@ -1599,7 +1675,7 @@ fun MapScreen(
                     onDownloadMaps = if (PlatformInfo.isDesktop) {
                         { corridorRequest = track.name to track.points.map { GeoPoint(it.lat, it.lon) } }
                     } else {
-                        null
+                        { requestCorridor(track) }
                     },
                 )
             }

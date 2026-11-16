@@ -437,7 +437,11 @@ fun JournalScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 } else {
-                                    ElevationChart(data.second.heights, Modifier.fillMaxWidth())
+                                    ElevationChart(
+                                        data.second.heights,
+                                        Modifier.fillMaxWidth(),
+                                        grades = gradeBuckets(data.first, data.second),
+                                    )
                                 }
                             }
                         }
@@ -472,7 +476,11 @@ fun JournalScreen(
                             (durSec?.let { " · " + formatDuration(it * 1000) } ?: ""),
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    ElevationChart(profile.heights, Modifier.fillMaxWidth())
+                    ElevationChart(
+                        profile.heights,
+                        Modifier.fillMaxWidth(),
+                        grades = gradeBuckets(track, profile),
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(tr("Реверс (от конца к началу)", "Reverse (end to start)"), Modifier.weight(1f))
                         Switch(checked = setup.reversed, onCheckedChange = { setup = setup.copy(reversed = it) })
@@ -859,6 +867,30 @@ private fun formatDate(millis: Long): String {
     val hh = dt.hour.toString().padStart(2, '0')
     val mm = dt.minute.toString().padStart(2, '0')
     return "$day $hh:$mm"
+}
+
+/** Steepness bucket 1..4 per chart segment, same thresholds as the map grade coloring. */
+private fun gradeBuckets(track: Track, profile: ru.azimut.app.core.dem.ElevationProfile): List<Int> {
+    val heights = profile.heights
+    if (track.points.size < 2 || heights.size != track.points.size) return emptyList()
+    val buckets = MutableList(heights.size - 1) { 1 }
+    for (i in 0 until heights.size - 1) {
+        val h1 = heights[i] ?: continue
+        val h2 = heights[i + 1] ?: continue
+        val dist = ru.azimut.app.core.model.distanceMeters(
+            ru.azimut.app.core.model.GeoPoint(track.points[i].lat, track.points[i].lon),
+            ru.azimut.app.core.model.GeoPoint(track.points[i + 1].lat, track.points[i + 1].lon),
+        )
+        if (dist < 1.0) continue
+        val percent = kotlin.math.abs(h2 - h1) / dist * 100.0
+        buckets[i] = when {
+            percent < 4.0 -> 1
+            percent < 8.0 -> 2
+            percent < 12.0 -> 3
+            else -> 4
+        }
+    }
+    return buckets
 }
 
 /** "5 ч 47 м" / "12 мин"; recorded from the first to the last point, plans use router time. */
