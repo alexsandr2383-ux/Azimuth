@@ -1102,7 +1102,7 @@ fun MapScreen(
                 ) { TrackRecorder.setPaused(!recorder.paused) }
             }
 
-            if (currentGeo != null && camera != null && !locationVisible) {
+            if (currentGeo != null && camera != null) {
                 MapControl(
                     Icons.Filled.MyLocation,
                     tr("К текущему местоположению", "Back to location"),
@@ -1118,6 +1118,16 @@ fun MapScreen(
                     tr("Скачать видимую область", "Download visible area"),
                     size = controlSize,
                 ) { areaDownload++ }
+            }
+
+            MapControl(
+                Icons.Filled.Route,
+                tr("Маршрут", "Route"),
+                routeResult?.ok == true,
+                size = controlSize,
+            ) {
+                routeDialogOpen = true
+                secondaryMenu = null
             }
 
             MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
@@ -1136,16 +1146,6 @@ fun MapScreen(
             if (controlsExpanded) {
             MapControl(Icons.Filled.AddLocationAlt, tr("Точка", "Waypoint"), size = controlSize) {
                 if (currentGeo == null) message = noFixMessage else picked = currentGeo
-            }
-
-            MapControl(
-                Icons.Filled.Route,
-                tr("Маршрут", "Route"),
-                routeResult?.ok == true,
-                size = controlSize,
-            ) {
-                routeDialogOpen = true
-                secondaryMenu = null
             }
 
             if (showPoiTypes) {
