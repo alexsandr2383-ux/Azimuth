@@ -43,12 +43,14 @@ class TrackingService : Service(), LocationListener {
         AndroidApp.context = applicationContext
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val settings = runCatching { SettingsStore().load() }.getOrDefault(AppSettings())
-        TrackRecorder.configure(settings.recordingIntervalSec, settings.batterySaver)
+        TrackRecorder.configure(settings.recordingIntervalSec, settings.batterySaver, settings.skipStops)
         PlatformLocation.applySettings(
             settings.recordingIntervalSec,
             settings.batterySaver,
             settings.backgroundRecording,
         )
+        // Barometric altimeter: fallback height source for fixes without GPS altitude.
+        ru.azimut.app.core.platform.PlatformBarometer.start()
         createChannel()
         startForegroundCompat()
     }
@@ -159,7 +161,14 @@ class TrackingService : Service(), LocationListener {
     private fun Location.toFix() = LocationFix(
         lat = latitude,
         lon = longitude,
-        altitude = if (hasAltitude()) altitude else null,
+        // GPS altitude first; when this fix has none, fall back to the calibrated
+        // barometer (the sensor also refreshes its offset from any GPS altitude here).
+        altitude = if (hasAltitude()) {
+            ru.azimut.app.core.platform.PlatformBarometer.calibrate(altitude)
+            altitude
+        } else {
+            ru.azimut.app.core.platform.PlatformBarometer.altitudeMeters.value
+        },
         accuracy = if (hasAccuracy()) accuracy else null,
         speed = if (hasSpeed()) speed else null,
         bearing = if (hasBearing()) bearing else null,
@@ -202,6 +211,7 @@ class TrackingService : Service(), LocationListener {
 
     override fun onDestroy() {
         runCatching { locationManager.removeUpdates(this) }
+        ru.azimut.app.core.platform.PlatformBarometer.stop()
         if (screenReceiverRegistered) runCatching { unregisterReceiver(screenOffReceiver) }
         screenReceiverRegistered = false
         serviceScope.cancel()
