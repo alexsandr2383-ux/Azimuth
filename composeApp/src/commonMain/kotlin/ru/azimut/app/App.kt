@@ -102,6 +102,7 @@ fun App() {
     var shownTrack by remember { mutableStateOf<Track?>(null) }
     var backgroundTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var following by remember { mutableStateOf(false) }
+    var followSetup by remember { mutableStateOf(ru.azimut.app.core.routing.FollowSetup()) }
     var startupScanMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
@@ -471,10 +472,11 @@ fun App() {
                     shownTrack = shownTrack,
                     backgroundTracks = backgroundTracks,
                     following = following,
-                    onShowTrack = { track, follow ->
+                    onShowTrack = { track, follow, setup ->
                         shownTrack = track
                         backgroundTracks = backgroundTracks.filterNot { track != null && it.id == track.id }
                         following = follow && track != null
+                        followSetup = setup
                     },
                     onSavePlan = { plan ->
                         // GPX serialization + index rewrite — off the UI thread.
@@ -510,10 +512,11 @@ fun App() {
                     routesOnly = screen == Screen.Routes,
                     summaries = summaries,
                     loadTrack = { id -> trackStore.load(id) },
-                    onShow = { track, follow ->
+                    onShow = { track, follow, setup ->
                         shownTrack = track
                         backgroundTracks = backgroundTracks.filterNot { it.id == track.id }
                         following = follow
+                        followSetup = setup
                         screen = Screen.Map
                     },
                     shownTrackIds = buildSet {

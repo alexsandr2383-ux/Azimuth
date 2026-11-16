@@ -2,6 +2,7 @@ package ru.azimut.app.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,12 +24,14 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -74,7 +77,7 @@ fun JournalScreen(
     routesOnly: Boolean = false,
     summaries: List<TrackSummary>,
     loadTrack: (id: String) -> Track?,
-    onShow: (track: Track, follow: Boolean) -> Unit,
+    onShow: (track: Track, follow: Boolean, setup: ru.azimut.app.core.routing.FollowSetup) -> Unit,
     /** Track ids currently drawn on the map (the active one plus background ones). */
     shownTrackIds: Set<String> = emptySet(),
     /** Adds/removes a background track line on the map; the active track is hidden too. */
@@ -111,6 +114,10 @@ fun JournalScreen(
         mutableStateOf<Pair<Track, ru.azimut.app.core.dem.ElevationProfile>?>(null)
     }
     var compare by remember { mutableStateOf<Triple<Track, Track, TrackCompareResult>?>(null) }
+    // Pre-start screen for «Ведение по треку»: track + DEM profile + chosen setup.
+    var preStart by remember {
+        mutableStateOf<Triple<Track, ru.azimut.app.core.dem.ElevationProfile, ru.azimut.app.core.routing.FollowSetup>?>(null)
+    }
     val loadFailed = tr("Не удалось открыть трек.", "Could not open the track.")
     val noPlansMessage = tr(
         "Нет сохранённых маршрутов для сравнения. Постройте маршрут на карте и сохраните его.",
@@ -299,11 +306,25 @@ fun JournalScreen(
                                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                         DropdownMenuItem(
                                             text = { Text(tr("На карте", "On map")) },
-                                            onClick = { menuOpen = false; withTrack(track) { onShow(it, false) } },
+                                            onClick = { menuOpen = false; withTrack(track) { onShow(it, false, ru.azimut.app.core.routing.FollowSetup()) } },
                                         )
                                         DropdownMenuItem(
                                             text = { Text(tr("Вести", "Navigate")) },
-                                            onClick = { menuOpen = false; withTrack(track) { onShow(it, true) } },
+                                            onClick = {
+                                                menuOpen = false
+                                                withTrack(track) { t ->
+                                                    scope.launch {
+                                                        val profile = withContext(Dispatchers.Default) {
+                                                            ru.azimut.app.core.dem.TrackElevation.analyze(t, demStore)
+                                                        }
+                                                        preStart = Triple(
+                                                            t,
+                                                            profile,
+                                                            ru.azimut.app.core.routing.FollowSetup(),
+                                                        )
+                                                    }
+                                                }
+                                            },
                                         )
                                         if (track.kind != KIND_ROUTE) {
                                             DropdownMenuItem(
@@ -430,6 +451,67 @@ fun JournalScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+    }
+
+    preStart?.let { (track, profile, initial) ->
+        var setup by remember(track.id) { mutableStateOf(initial) }
+        AlertDialog(
+            onDismissRequest = { preStart = null },
+            title = { Text(tr("Ведение по треку", "Follow track")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val durSec = if (track.kind == KIND_ROUTE) {
+                        track.plannedTimeSeconds?.toLong()
+                    } else {
+                        track.points.lastOrNull()?.timeMillis
+                            ?.takeIf { it > track.startedAt }?.let { (it - track.startedAt) / 1000 }
+                    }
+                    Text(
+                        track.name + " · " + formatDistance(track.distanceMeters) +
+                            (durSec?.let { " · " + formatDuration(it * 1000) } ?: ""),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    ElevationChart(profile.heights, Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(tr("Реверс (от конца к началу)", "Reverse (end to start)"), Modifier.weight(1f))
+                        Switch(checked = setup.reversed, onCheckedChange = { setup = setup.copy(reversed = it) })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(tr("Петля (финиш у старта)", "Loop (finish at the start)"), Modifier.weight(1f))
+                        Switch(checked = setup.loop, onCheckedChange = { setup = setup.copy(loop = it) })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(tr("Авто-цель (старт с ближайшей точки)", "Auto target (start at nearest point)"), Modifier.weight(1f))
+                        Switch(checked = setup.autoTarget, onCheckedChange = { setup = setup.copy(autoTarget = it) })
+                    }
+                    Text(
+                        tr("Порог отклонения:", "Off-route threshold:"),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        listOf(30.0, 50.0, 100.0, 150.0).forEach { m ->
+                            FilterChip(
+                                selected = setup.offRouteMeters == m,
+                                onClick = { setup = setup.copy(offRouteMeters = m) },
+                                label = { Text("${m.toInt()} м") },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    preStart = null
+                    onShow(track, true, setup)
+                }) { Text(tr("Начать", "Start")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { preStart = null }) { Text(tr("Отмена", "Cancel")) }
+            },
         )
     }
 

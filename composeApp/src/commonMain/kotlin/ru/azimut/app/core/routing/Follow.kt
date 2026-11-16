@@ -20,23 +20,39 @@ data class FollowProgress(
  * Follows a planned line (Follow Track). Holds precomputed cumulative distances;
  * [offRoute] uses hysteresis so GPS noise around the threshold does not toggle alarms.
  */
-class RouteFollower(private val line: List<GeoPoint>) {
+class RouteFollower(
+    private val line: List<GeoPoint>,
+    /** Off-route alarm threshold in metres; hysteresis scales with it. */
+    offRouteMeters: Double = OFF_ROUTE_M,
+    /** First update snaps the progress to the nearest line point (start mid-track). */
+    private val autoStart: Boolean = false,
+) {
+    private val offRouteM = offRouteMeters
+    private val backOnRouteM = offRouteMeters * BACK_ON_RATIO
     private val cumulative = DoubleArray(line.size).also { acc ->
         for (i in 1 until line.size) acc[i] = acc[i - 1] + distanceMeters(line[i - 1], line[i])
     }
     val totalMeters: Double get() = cumulative.lastOrNull() ?: 0.0
 
     private var doneMeters = 0.0
+    private var initialized = false
 
     var offRoute = false
         private set
 
     fun update(position: GeoPoint): FollowProgress? {
         if (line.size < 2) return null
+        if (!initialized) {
+            initialized = true
+            if (autoStart) {
+                // «Авто-цель»: begin from the nearest point of the track, not from its start.
+                nearest(position, 0.0, totalMeters, 0.0)?.let { doneMeters = it.second }
+            }
+        }
         val progress = progress(position)
         offRoute = when {
-            progress.offRouteMeters > OFF_ROUTE_M -> true
-            progress.offRouteMeters < BACK_ON_ROUTE_M -> false
+            progress.offRouteMeters > offRouteM -> true
+            progress.offRouteMeters < backOnRouteM -> false
             else -> offRoute
         }
         return progress
@@ -44,22 +60,22 @@ class RouteFollower(private val line: List<GeoPoint>) {
 
     private fun progress(position: GeoPoint): FollowProgress {
         // Distance to the whole line: being next to another part of a loop is not off route.
-        val offRouteMeters = nearest(position, 0.0, totalMeters, doneMeters)!!.first
+        val distanceToLine = nearest(position, 0.0, totalMeters, doneMeters)!!.first
 
         // Window around the current progress avoids snapping to the start of a loop or a parallel leg.
         val minAlong = doneMeters - BACKTRACK_M
         val window = nearest(position, minAlong, doneMeters + LOOKAHEAD_M, doneMeters)
-        if (window != null && window.first <= OFF_ROUTE_M) {
+        if (window != null && window.first <= offRouteM) {
             doneMeters = window.second
         } else {
             // A shortcut can rejoin the route ahead; never go backwards past the backtrack window.
             val forward = nearest(position, minAlong, totalMeters, doneMeters)
-            if (forward != null && forward.first <= OFF_ROUTE_M) doneMeters = forward.second
+            if (forward != null && forward.first <= offRouteM) doneMeters = forward.second
         }
 
         val remaining = (totalMeters - doneMeters).coerceAtLeast(0.0)
         return FollowProgress(
-            offRouteMeters = offRouteMeters,
+            offRouteMeters = distanceToLine,
             doneMeters = doneMeters,
             remainingMeters = remaining,
             finished = distanceMeters(position, line.last()) < FINISH_M && remaining < FINISH_M,
@@ -120,9 +136,22 @@ class RouteFollower(private val line: List<GeoPoint>) {
 
     companion object {
         const val OFF_ROUTE_M = 50.0
-        const val BACK_ON_ROUTE_M = 30.0
+        /** Back-on-route hysteresis as a share of the off-route threshold. */
+        const val BACK_ON_RATIO = 0.6
         const val FINISH_M = 30.0
         const val BACKTRACK_M = 50.0
         const val LOOKAHEAD_M = 1000.0
     }
 }
+
+/** Pre-start choices of the «Ведение по треку» screen. */
+data class FollowSetup(
+    /** Walk the track from its end back to the start. */
+    val reversed: Boolean = false,
+    /** A closed track: finishing means returning to the start point. */
+    val loop: Boolean = false,
+    /** Off-route alarm threshold in metres. */
+    val offRouteMeters: Double = RouteFollower.OFF_ROUTE_M,
+    /** Start following from the nearest track point instead of the track start. */
+    val autoTarget: Boolean = false,
+)

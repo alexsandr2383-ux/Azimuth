@@ -177,7 +177,9 @@ fun MapScreen(
     /** Extra saved tracks drawn as thin background lines (journal eye toggle). */
     backgroundTracks: List<Track> = emptyList(),
     following: Boolean,
-    onShowTrack: (track: Track?, follow: Boolean) -> Unit,
+    /** Pre-start choices from the «Ведение по треку» screen (reversed/loop/threshold/auto-target). */
+    followSetup: ru.azimut.app.core.routing.FollowSetup = ru.azimut.app.core.routing.FollowSetup(),
+    onShowTrack: (track: Track?, follow: Boolean, setup: ru.azimut.app.core.routing.FollowSetup) -> Unit,
     onSavePlan: suspend (Track) -> Result<Unit>,
     /** Journal eye toggle from the map context menu: show a hidden track or hide a shown one. */
     onToggleTrackShown: (Track) -> Unit = {},
@@ -607,8 +609,12 @@ fun MapScreen(
     }
 
     // Follow Track: progress along the shown line, alarm once when leaving it (repeated each minute).
-    val follower = remember(shownTrack) {
-        shownTrack?.let { track -> RouteFollower(track.points.map { GeoPoint(it.lat, it.lon) }) }
+    val follower = remember(shownTrack, followSetup) {
+        shownTrack?.let { track ->
+            var line = track.points.map { GeoPoint(it.lat, it.lon) }
+            if (followSetup.reversed) line = line.reversed()
+            RouteFollower(line, followSetup.offRouteMeters, autoStart = followSetup.autoTarget)
+        }
     }
     var followProgress by remember(shownTrack) { mutableStateOf<FollowProgress?>(null) }
     var offRoute by remember(shownTrack) { mutableStateOf(false) }
@@ -631,7 +637,7 @@ fun MapScreen(
         offRoute = follower.offRoute
         if (progress.finished) {
             message = finishedMessage
-            onShowTrack(shownTrack, false)
+            onShowTrack(shownTrack, false, followSetup)
         }
     }
 
@@ -1529,7 +1535,7 @@ fun MapScreen(
                                 }
                                 TextButton(
                                     onClick = {
-                                        onShowTrack(planOf(result, defaultPlanName()), true)
+                                        onShowTrack(planOf(result, defaultPlanName()), true, ru.azimut.app.core.routing.FollowSetup())
                                         routeResult = null
                                     },
                                     contentPadding = PaddingValues(horizontal = 8.dp),
@@ -1563,8 +1569,8 @@ fun MapScreen(
                     following = following,
                     progress = followProgress,
                     offRoute = offRoute,
-                    onFollow = { onShowTrack(track, it) },
-                    onHide = { onShowTrack(null, false) },
+                    onFollow = { onShowTrack(track, it, followSetup) },
+                    onHide = { onShowTrack(null, false, ru.azimut.app.core.routing.FollowSetup()) },
                     onDownloadMaps = if (PlatformInfo.isDesktop) {
                         { corridorRequest = track.name to track.points.map { GeoPoint(it.lat, it.lon) } }
                     } else {
