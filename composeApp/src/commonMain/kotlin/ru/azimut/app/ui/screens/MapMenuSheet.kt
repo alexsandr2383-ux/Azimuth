@@ -66,9 +66,7 @@ internal fun MapMenuSheet(
                 MenuRow(Icons.Filled.Navigation, Color(0xFF0F766E), tr("К координатам", "Go to coordinates"), onGoto)
             }
             MenuGroup {
-                MenuRow(Icons.Filled.Place, Color(0xFF65A30D), tr("Точки", "Waypoints"), onPoints)
-                MenuDivider()
-                MenuRow(Icons.AutoMirrored.Filled.List, Color(0xFFD97706), tr("Журнал поездок", "Trip journal"), onJournal)
+                MenuRow(Icons.Filled.Place, Color(0xFF65A30D), tr("Коллекции", "Collections"), onJournal)
             }
             MenuGroup {
                 MenuRow(Icons.Filled.Settings, Color(0xFF8E8E93), tr("Настройки", "Settings"), onSettings)

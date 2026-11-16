@@ -180,6 +180,11 @@ fun App() {
         }
     }
 
+    // Switching between the collection tabs keeps Back pointing to where the user came from.
+    fun switchTab(next: Screen) {
+        screen = next
+    }
+
     fun goBack() {
         val target = previousScreen
         previousScreen = Screen.Map
@@ -496,6 +501,7 @@ fun App() {
                         points = next
                         scope.launch { savePoints(next) }
                     },
+                    onSwitchTab = ::switchTab,
                     onBack = { goBack() },
                 )
 
@@ -541,6 +547,7 @@ fun App() {
                         runCatching { trackStore.purge(id) }
                         trash = trackStore.listTrash()
                     },
+                    onSwitchTab = ::switchTab,
                     onBack = { goBack() },
                 )
 

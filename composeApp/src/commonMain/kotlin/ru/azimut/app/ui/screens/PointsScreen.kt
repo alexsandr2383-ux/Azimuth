@@ -81,6 +81,7 @@ fun PointsScreen(
     onDeletePoint: (Waypoint) -> Unit,
     /** Bulk add used by the multi-format import; replaces duplicates by id. */
     onAddPoints: (List<Waypoint>) -> Unit = {},
+    onSwitchTab: (ru.azimut.app.Screen) -> Unit = {},
     onBack: () -> Unit,
 ) {
     var showAdd by remember { mutableStateOf(false) }
@@ -193,7 +194,8 @@ fun PointsScreen(
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            BackHeader(tr("Точки", "Waypoints"), onBack)
+            BackHeader(tr("Коллекции", "Collections"), onBack)
+            ru.azimut.app.ui.components.CollectionsTabs(ru.azimut.app.Screen.Points, onSwitchTab)
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },

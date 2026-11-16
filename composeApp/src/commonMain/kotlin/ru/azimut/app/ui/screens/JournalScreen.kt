@@ -76,6 +76,7 @@ fun JournalScreen(
     trash: List<ru.azimut.app.core.storage.TrashedTrack> = emptyList(),
     onRestore: (id: String) -> Unit = {},
     onPurge: (id: String) -> Unit = {},
+    onSwitchTab: (ru.azimut.app.Screen) -> Unit = {},
     onBack: () -> Unit,
 ) {
     var showTrash by remember { mutableStateOf(false) }
@@ -163,7 +164,8 @@ fun JournalScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        BackHeader(tr("Журнал поездок", "Trip journal"), onBack)
+        BackHeader(tr("Коллекции", "Collections"), onBack)
+        ru.azimut.app.ui.components.CollectionsTabs(ru.azimut.app.Screen.Journal, onSwitchTab)
         if (trash.isNotEmpty()) {
             TextButton(onClick = { showTrash = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
                 Text(tr("Недавно удалённые (${trash.size})", "Recently deleted (${trash.size})"))
