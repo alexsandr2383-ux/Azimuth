@@ -78,81 +78,26 @@ internal fun MapContextMenu(
             hitTrack = track
         }
     }
-    // A 1 px anchor at the click position: DropdownMenu positions itself relative to its parent.
-    Box(
-        Modifier
-            .offset { IntOffset(menu.offset.x.roundToInt(), menu.offset.y.roundToInt()) }
-            .size(1.dp)
-    ) {
-        DropdownMenu(
-            expanded = true,
-            onDismissRequest = onDismiss,
-        ) {
-            DropdownMenuItem(
-                text = { Text(tr("Откуда — эта точка", "Route from here")) },
-                onClick = { onRouteFrom(menu.point); onDismiss() },
-            )
-            DropdownMenuItem(
-                text = { Text(tr("Куда — эта точка", "Route to here")) },
-                onClick = { onRouteTo(menu.point); onDismiss() },
-            )
-            DropdownMenuItem(
-                text = { Text(tr("Маршрут сюда", "Build route here")) },
-                onClick = { onRouteHere(menu.point); onDismiss() },
-            )
-            DropdownMenuItem(
-                text = { Text(tr("Через эту точку", "Via this point")) },
-                onClick = { onVia(menu.point); onDismiss() },
-            )
-            if (hasRoute) {
-                DropdownMenuItem(
-                    text = { Text(tr("Очистить маршрут", "Clear route")) },
-                    onClick = { onClearRoute(); onDismiss() },
-                )
-            }
-            hitTrack?.let { hit ->
-                val trackShown = hit.id == shownTrack?.id ||
-                    backgroundTracks.any { it.id == hit.id }
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            if (trackShown) tr("Скрыть трек", "Hide track")
-                            else tr("Показать трек", "Show track")
-                        )
-                    },
-                    onClick = { onToggleTrack(hit); onDismiss() },
-                )
-                DropdownMenuItem(
-                    text = { Text(tr("Сохранить трек GPX", "Save track GPX")) },
-                    onClick = { onExportTrack(hit); onDismiss() },
-                )
-                DropdownMenuItem(
-                    text = { Text(tr("Переименовать трек", "Rename track")) },
-                    onClick = { onRenameTrack(hit); onDismiss() },
-                )
-                DropdownMenuItem(
-                    text = { Text(tr("Удалить трек", "Delete track")) },
-                    onClick = { onDeleteTrack(hit); onDismiss() },
-                )
-            }
-            hitPoint?.let { hit ->
-                DropdownMenuItem(
-                    text = { Text(tr("Копировать координаты", "Copy coordinates")) },
-                    onClick = { onCopyCoords(hit); onDismiss() },
-                )
-                DropdownMenuItem(
-                    text = { Text(tr("Компас: к этой точке", "Compass: navigate to it")) },
-                    onClick = { onNavigateTo(hit); onDismiss() },
-                )
-                DropdownMenuItem(
-                    text = { Text(tr("Удалить точку", "Delete point")) },
-                    onClick = { onDeletePoint(hit); onDismiss() },
-                )
-            }
-            DropdownMenuItem(
-                text = { Text(tr("Добавить точку/POI", "Add waypoint/POI")) },
-                onClick = { onAddPoint(menu.point); onDismiss() },
-            )
-        }
-    }
+    PlaceSheet(
+        point = menu.point,
+        hitPoint = hitPoint,
+        hitTrack = hitTrack,
+        shownTrack = shownTrack,
+        backgroundTracks = backgroundTracks,
+        hasRoute = hasRoute,
+        onDismiss = onDismiss,
+        onRouteFrom = onRouteFrom,
+        onRouteTo = onRouteTo,
+        onRouteHere = onRouteHere,
+        onVia = onVia,
+        onClearRoute = onClearRoute,
+        onToggleTrack = onToggleTrack,
+        onRenameTrack = onRenameTrack,
+        onDeleteTrack = onDeleteTrack,
+        onExportTrack = onExportTrack,
+        onCopyCoords = onCopyCoords,
+        onNavigateTo = onNavigateTo,
+        onDeletePoint = onDeletePoint,
+        onAddPoint = onAddPoint,
+    )
 }

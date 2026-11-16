@@ -63,19 +63,19 @@ internal fun MapMenuSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             MenuGroup {
-                MenuRow(Icons.Filled.Navigation, Color(0xFF007AFF), tr("К координатам", "Go to coordinates"), onGoto)
+                MenuRow(Icons.Filled.Navigation, Color(0xFF0F766E), tr("К координатам", "Go to coordinates"), onGoto)
             }
             MenuGroup {
-                MenuRow(Icons.Filled.Place, Color(0xFF34C759), tr("Точки", "Waypoints"), onPoints)
+                MenuRow(Icons.Filled.Place, Color(0xFF65A30D), tr("Точки", "Waypoints"), onPoints)
                 MenuDivider()
-                MenuRow(Icons.AutoMirrored.Filled.List, Color(0xFFFF9500), tr("Журнал поездок", "Trip journal"), onJournal)
+                MenuRow(Icons.AutoMirrored.Filled.List, Color(0xFFD97706), tr("Журнал поездок", "Trip journal"), onJournal)
             }
             MenuGroup {
                 MenuRow(Icons.Filled.Settings, Color(0xFF8E8E93), tr("Настройки", "Settings"), onSettings)
                 MenuDivider()
-                MenuRow(Icons.AutoMirrored.Filled.Help, Color(0xFF30B0C7), tr("Справка", "Help"), onHelp)
+                MenuRow(Icons.AutoMirrored.Filled.Help, Color(0xFF0891B2), tr("Справка", "Help"), onHelp)
                 MenuDivider()
-                MenuRow(Icons.Filled.Info, Color(0xFF5856D6), tr("О приложении", "About"), onAbout)
+                MenuRow(Icons.Filled.Info, Color(0xFF7C5C3B), tr("О приложении", "About"), onAbout)
             }
             Spacer(Modifier.height(4.dp))
         }
@@ -83,17 +83,17 @@ internal fun MapMenuSheet(
 }
 
 @Composable
-private fun MenuGroup(content: @Composable () -> Unit) {
+internal fun MenuGroup(content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(GroupColor)) { content() }
 }
 
 @Composable
-private fun MenuDivider() {
+internal fun MenuDivider() {
     HorizontalDivider(Modifier.padding(start = 64.dp), color = Color(0xFFE5E5EA))
 }
 
 @Composable
-private fun MenuRow(icon: ImageVector, tile: Color, title: String, onClick: () -> Unit) {
+internal fun MenuRow(icon: ImageVector, tile: Color, title: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

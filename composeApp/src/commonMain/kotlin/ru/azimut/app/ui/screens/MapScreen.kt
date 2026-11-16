@@ -977,6 +977,12 @@ fun MapScreen(
                     current?.altitude?.let { "▲ ${it.roundToInt()} " + tr("м", "m") } ?: "▲ —",
                     style = MaterialTheme.typography.titleMedium,
                 )
+                Text(
+                    current?.bearing?.takeIf { (current.speed ?: 0f) >= MIN_COURSE_SPEED_MPS }
+                        ?.let { "⌖ ${it.roundToInt()}°" } ?: "⌖ —",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MapAccent,
+                )
                 Icon(
                     Icons.Filled.SatelliteAlt,
                     contentDescription = tr("Спутники", "Satellites"),

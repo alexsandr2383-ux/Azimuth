@@ -156,10 +156,10 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /** Guru-style map overlay palette: light panels with dark icons on any map. */
-internal val MapPanelColor = androidx.compose.ui.graphics.Color(0xFFF7F7F7)
+internal val MapPanelColor = androidx.compose.ui.graphics.Color(0xFFFAF8F3)
 internal val MapPanelContent = androidx.compose.ui.graphics.Color(0xFF1C1C1E)
-internal val MapAccent = androidx.compose.ui.graphics.Color(0xFF007AFF)
-internal val MapAccentSoft = androidx.compose.ui.graphics.Color(0xFFD6E8FF)
+internal val MapAccent = androidx.compose.ui.graphics.Color(0xFF0F766E)
+internal val MapAccentSoft = androidx.compose.ui.graphics.Color(0xFFCDEDE8)
 internal val MapRecordRed = androidx.compose.ui.graphics.Color(0xFFE53935)
 internal val MapButtonShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
 
