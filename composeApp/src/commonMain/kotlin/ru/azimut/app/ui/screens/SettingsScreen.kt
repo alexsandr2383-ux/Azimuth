@@ -1,6 +1,21 @@
 package ru.azimut.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.filled.GppGood
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +51,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import ru.azimut.app.AppInfo
 import ru.azimut.app.core.astro.Daylight
 import ru.azimut.app.core.astro.SunState
 import ru.azimut.app.core.astro.SunTimes
@@ -292,6 +308,9 @@ fun SettingsScreen(
                 tr("Карты и слои", "Maps & layers"),
                 expanded("maps"),
                 { setExpanded("maps") },
+                icon = Icons.Filled.Layers,
+                iconTint = Color(0xFF2E7D32),
+                summary = if (settings.mapLayer == "satellite") tr("Спутник", "Satellite") else tr("Базовая", "Base"),
             ) {
                 ChoiceRow(
                     tr("Слой карты", "Map layer"),
@@ -384,6 +403,9 @@ fun SettingsScreen(
                 tr("Запись и треки", "Recording & tracks"),
                 expanded("tracking"),
                 { setExpanded("tracking") },
+                icon = Icons.Filled.Mic,
+                iconTint = Color(0xFFE65100),
+                summary = "${settings.recordingIntervalSec} с",
             ) {
                 var gpsPorts by remember { mutableStateOf<List<String>?>(null) }
                 LaunchedEffect(settings.expandedCategories) {
@@ -455,6 +477,9 @@ fun SettingsScreen(
                 tr("Ориентация карты", "Map orientation"),
                 expanded("orientation"),
                 { setExpanded("orientation") },
+                icon = Icons.Filled.Explore,
+                iconTint = Color(0xFF1565C0),
+                summary = if (settings.orientationMode == "course") tr("По ходу", "Course up") else tr("Север вверху", "North up"),
             ) {
                 ChoiceRow(
                     tr("Режим", "Mode"),
@@ -470,6 +495,9 @@ fun SettingsScreen(
                 tr("Топливо", "Fuel"),
                 expanded("fuel"),
                 { setExpanded("fuel") },
+                icon = Icons.Filled.LocalGasStation,
+                iconTint = Color(0xFF6A1B9A),
+                summary = if (settings.fuelTankLiters > 0) "${"%.0f".format(settings.fuelTankLiters)} л" else tr("выкл", "off"),
             ) {
                 FuelField(
                     tr("Бак, л", "Tank, l"),
@@ -497,6 +525,9 @@ fun SettingsScreen(
                 tr("Точки и фото", "Waypoints & media"),
                 expanded("points"),
                 { setExpanded("points") },
+                icon = Icons.Filled.PhotoCamera,
+                iconTint = Color(0xFFEF6C00),
+                summary = settings.photoQuality,
             ) {
                 SwitchRow(
                     tr("Голосовые заметки", "Voice notes"),
@@ -549,6 +580,9 @@ fun SettingsScreen(
                 tr("Погода и световой день", "Weather & daylight"),
                 expanded("weather"),
                 { setExpanded("weather") },
+                icon = Icons.Filled.WbSunny,
+                iconTint = Color(0xFFF9A825),
+                summary = if (settings.weatherRelief) tr("с рельефом", "terrain") else tr("без рельефа", "flat"),
             ) {
                 val daylightValue = when {
                     daylightCoords == null -> tr("нужен GPS-фикс или база", "needs a GPS fix or base")
@@ -646,6 +680,9 @@ fun SettingsScreen(
                 tr("Данные, хранилище и синхронизация", "Data, storage & sync"),
                 expanded("data"),
                 { setExpanded("data") },
+                icon = Icons.Filled.Storage,
+                iconTint = Color(0xFF546E7A),
+                summary = if (settings.autoScan) tr("автоскан", "auto-scan") else tr("вручную", "manual"),
             ) {
                 InfoRow(tr("Общее хранилище", "Shared storage"), PlatformFiles.navDataRoot())
                 InfoRow(tr("Структура", "Structure"), "maps/ · tracks/ · dem/ · routing/")
@@ -722,6 +759,9 @@ fun SettingsScreen(
                 tr("Рельеф (DEM)", "Terrain (DEM)"),
                 expanded("dem"),
                 { setExpanded("dem") },
+                icon = Icons.Filled.Terrain,
+                iconTint = Color(0xFF33691E),
+                summary = tr("NavData/dem", "NavData/dem"),
             ) {
                 var demFiles by remember { mutableStateOf<List<ru.azimut.app.core.dem.DemImport.DemEntry>>(emptyList()) }
                 LaunchedEffect(settings.expandedCategories) {
@@ -842,6 +882,9 @@ fun SettingsScreen(
                 tr("ООПТ и запреты", "Protected areas"),
                 expanded("protected"),
                 { setExpanded("protected") },
+                icon = Icons.Filled.GppGood,
+                iconTint = Color(0xFFC62828),
+                summary = if (settings.protectedWarnings) tr("предупреждения вкл", "warnings on") else tr("выкл", "off"),
             ) {
                 var zoneFiles by remember { mutableStateOf<List<ru.azimut.app.core.protected.ProtectedAreaFile>>(emptyList()) }
                 LaunchedEffect(settings.expandedCategories) {
@@ -955,6 +998,8 @@ fun SettingsScreen(
                 tr("XYZ-карты по ссылке", "XYZ map sources"),
                 expanded("xyz"),
                 { setExpanded("xyz") },
+                icon = Icons.Filled.Public,
+                iconTint = Color(0xFF00838F),
             ) {
                 Text(
                     tr(
@@ -1046,6 +1091,8 @@ fun SettingsScreen(
                 tr("Синхронизация NavData", "NavData sync"),
                 expanded("sync"),
                 { setExpanded("sync") },
+                icon = Icons.Filled.Sync,
+                iconTint = Color(0xFF0277BD),
             ) {
                 Text(
                     tr(
@@ -1289,56 +1336,9 @@ fun SettingsScreen(
                 )
             }
 
-            if (!compact) AccordionSection(
-                tr("Интерфейс", "Interface"),
-                expanded("interface"),
-                { setExpanded("interface") },
-            ) {
-                ChoiceRow(
-                    tr("Язык", "Language"),
-                    listOf("ru" to "Русский", "en" to "English"),
-                    settings.language,
-                ) { onSettingsChange(settings.copy(language = it)) }
-                ChoiceRow(
-                    tr("Тема", "Theme"),
-                    listOf("dark" to tr("Тёмная", "Dark"), "light" to tr("Светлая", "Light")),
-                    settings.theme,
-                ) { onSettingsChange(settings.copy(theme = it)) }
-                InfoRow(tr("Платформа", "Platform"), PlatformInfo.name)
-                InfoRow(tr("Кнопки на карте", "Map buttons"), tr("крупные", "large"))
-                SwitchRow(
-                    tr("Большая скорость", "Large speed readout"),
-                    settings.bigSpeed,
-                    { onSettingsChange(settings.copy(bigSpeed = it)) },
-                    tr("Крупные цифры для мотокрепления", "Big digits for handlebar mounting"),
-                )
-                if (!PlatformInfo.isDesktop) {
-                    SwitchRow(
-                        tr("Скрывать системные кнопки", "Hide system buttons"),
-                        settings.hideSystemButtons,
-                        { onSettingsChange(settings.copy(hideSystemButtons = it)) },
-                        tr(
-                            "Полноэкранный режим без панели навигации",
-                            "Immersive mode without the navigation bar",
-                        ),
-                    )
-                }
-            }
+            InterfaceSection(settings, onSettingsChange, { expanded(it) }, { setExpanded(it) })
 
-            if (!compact) AccordionSection(
-                tr("О приложении", "About"),
-                expanded("about"),
-                { setExpanded("about") },
-            ) {
-                InfoRow(tr("Автор", "Author"), "Скляров Александр Михайлович")
-                InfoRow(tr("Контакт", "Contact"), "alexsandr23.83@mail.ru")
-                InfoRow(tr("Версия", "Version"), ru.azimut.app.AppInfo.VERSION)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onOpenHelp) { Text(tr("Справка", "Help")) }
-                    OutlinedButton(onClick = onOpenAbout) { Text(tr("Подробнее", "Details")) }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
+            AboutSection({ expanded(it) }, { setExpanded(it) }, onOpenHelp, onOpenAbout)
         }
     }
 
