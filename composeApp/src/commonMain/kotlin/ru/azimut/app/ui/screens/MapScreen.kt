@@ -62,6 +62,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.filled.FiberManualRecord
@@ -213,6 +214,7 @@ fun MapScreen(
     var message by remember { mutableStateOf<String?>(null) }
     var showExit by remember { mutableStateOf(false) }
     var showGoto by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     var showStartRecording by remember { mutableStateOf(false) }
     var showStopRecording by remember { mutableStateOf(false) }
     var gotoText by remember { mutableStateOf("") }
@@ -1128,6 +1130,15 @@ fun MapScreen(
             ) {
                 routeDialogOpen = true
                 secondaryMenu = null
+            }
+
+            MapControl(Icons.Filled.Search, tr("Поиск", "Search"), size = controlSize) { showSearch = true }
+            if (showSearch) {
+                MapSearchSheet(
+                    points = points,
+                    onGo = { gotoTarget = it; gotoKey++ },
+                    onDismiss = { showSearch = false },
+                )
             }
 
             MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
