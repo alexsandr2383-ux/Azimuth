@@ -3,7 +3,7 @@
 Рабочая папка: `D:\1_My_Project\Azimut_2` (копия `D:\Azimut-Dev`, старая папка не тронута).
 
 ## Как собирать и проверять
-- Перед Gradle: `GRADLE_USER_HOME=D:\Azimut-Dev\.gradle-home` (обход кириллического профиля).
+- Перед Gradle: `GRADLE_USER_HOME=D:\Azimut-Dev\.gradle-home` и `GRADLE_OPTS="-Djava.io.tmpdir=D:/1_My_Project/Azimut_2/.gradle-tmp"` (обход кириллического профиля; tmpdir убран из gradle.properties, т.к. ломал CI на Linux).
 - Тесты и сборка: `./gradlew :composeApp:desktopTest :composeApp:assembleDebug`.
 - Телефон: `adb install -r composeApp/build/outputs/apk/debug/composeApp-debug.apk` (данные сохраняются).
 - Wi-Fi adb: `adb connect 192.168.0.101:5555` (если IP сменился — один раз по USB `adb tcpip 5555`).
