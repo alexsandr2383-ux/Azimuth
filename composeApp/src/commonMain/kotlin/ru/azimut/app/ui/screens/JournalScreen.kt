@@ -80,6 +80,11 @@ fun JournalScreen(
     onBack: () -> Unit,
 ) {
     var showTrash by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf(ru.azimut.app.core.model.TrackSort.DATE) }
+    val shown = remember(summaries, query, sort) {
+        ru.azimut.app.core.model.TrackListOps.filterSort(summaries, query, sort)
+    }
     var confirmPurge by remember { mutableStateOf<ru.azimut.app.core.storage.TrashedTrack?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf<TrackSummary?>(null) }
@@ -171,6 +176,30 @@ fun JournalScreen(
                 Text(tr("Недавно удалённые (${trash.size})", "Recently deleted (${trash.size})"))
             }
         }
+        if (summaries.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    label = { Text(tr("Поиск по названию", "Search by name")) },
+                )
+                TextButton(onClick = { sort = ru.azimut.app.core.model.TrackListOps.next(sort) }) {
+                    Text(
+                        when (sort) {
+                            ru.azimut.app.core.model.TrackSort.DATE -> tr("По дате", "By date")
+                            ru.azimut.app.core.model.TrackSort.NAME -> tr("По имени", "By name")
+                            ru.azimut.app.core.model.TrackSort.DISTANCE -> tr("По длине", "By length")
+                        },
+                    )
+                }
+            }
+        }
         if (summaries.isEmpty()) {
             EmptyState(
                 tr(
@@ -184,7 +213,7 @@ fun JournalScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(summaries, key = { it.id }) { track ->
+                items(shown, key = { it.id }) { track ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(start = 12.dp, top = 12.dp, end = 4.dp, bottom = 4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
