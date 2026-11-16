@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import ru.azimut.app.core.gpx.Gpx
 import ru.azimut.app.core.model.AppSettings
 import ru.azimut.app.core.model.Track
+import ru.azimut.app.core.model.KIND_ROUTE
 import ru.azimut.app.core.model.TrackSummary
 import ru.azimut.app.core.model.Waypoint
 import ru.azimut.app.core.model.toSummary
@@ -78,8 +79,20 @@ class TrackStore {
         PlatformFiles.writeText("tracks/index.json", json.encodeToString(summaries))
     }
 
-    fun list(): List<TrackSummary> =
-        loadOrPreserve<List<TrackSummary>>("tracks/index.json") ?: rebuildIndex()
+    fun list(): List<TrackSummary> {
+        val stored = loadOrPreserve<List<TrackSummary>>("tracks/index.json") ?: return rebuildIndex()
+        if (stored.none { it.durationSeconds == null }) return stored
+        // One-time upgrade: an index written before durationSeconds existed gets its entries
+        // re-parsed from the GPX files. Routes legitimately have no duration (plannedTimeSeconds
+        // arrived later and is absent from older GPX), so only recorded tracks trigger this.
+        if (stored.none { it.durationSeconds == null && it.kind != KIND_ROUTE }) return stored
+        val fresh = rebuildIndex()
+        if (fresh.isEmpty()) return stored
+        // Upgrade in place: keep the stored entry identity (dates, names) and fill in only
+        // the duration; entries whose GPX is gone survive as they are.
+        val byId = fresh.associateBy { it.id }
+        return stored.map { s -> byId[s.id]?.let { s.copy(durationSeconds = it.durationSeconds ?: s.durationSeconds) } ?: s }
+    }
 
     /** Recreates the journal index from the GPX files in tracks/ when it is missing or damaged. */
     private fun rebuildIndex(): List<TrackSummary> {

@@ -123,16 +123,20 @@ fun PointsScreen(
     val invalidCoordinatesMessage = tr("Введите корректные координаты", "Invalid coordinates")
     val defaultPointName = tr("Точка", "Waypoint")
     // Sorting 10k imported POIs on every recomposition would stall the list.
-    val sortedPoints = remember(points) { points.sortedByDescending { it.createdAt } }
+    var sortByName by remember { mutableStateOf(false) }
+    val sortedPoints = remember(points, sortByName) {
+        if (sortByName) points.sortedBy { it.name.lowercase() } else points.sortedByDescending { it.createdAt }
+    }
 
-    // Favorites and recents: chips filter the list; the star toggles favorite in place.
+    // Favorites, recents and category "folders": chips filter the list; the star toggles favorite in place.
     val langEn = LocalLang.current == "en"
     var filter by remember { mutableStateOf("all") }
     var searchQuery by remember { mutableStateOf("") }
     val filteredPoints = remember(sortedPoints, filter, searchQuery) {
-        val base = when (filter) {
-            "fav" -> sortedPoints.filter { it.favorite }
-            "recent" -> sortedPoints.take(10)
+        val base = when {
+            filter == "fav" -> sortedPoints.filter { it.favorite }
+            filter == "recent" -> sortedPoints.take(10)
+            filter.startsWith("cat:") -> sortedPoints.filter { it.poiType == filter.removePrefix("cat:") }
             else -> sortedPoints
         }
         val q = searchQuery.trim().lowercase()
@@ -226,6 +230,22 @@ fun PointsScreen(
                     onClick = { filter = "recent" },
                     label = { Text(tr("Недавние", "Recent")) },
                 )
+                // Category "folders" with a counter: only the ones that have points.
+                val catCounts = remember(points) { points.groupingBy { it.poiType }.eachCount() }
+                PoiTypes.ALL.forEach { type ->
+                    val count = catCounts[type] ?: 0
+                    if (count > 0) {
+                        val tag = "cat:$type"
+                        FilterChip(
+                            selected = filter == tag,
+                            onClick = { filter = if (filter == tag) "all" else tag },
+                            label = { Text(poiTypeLabel(type) + " ($count)") },
+                        )
+                    }
+                }
+                TextButton(onClick = { sortByName = !sortByName }) {
+                    Text(if (sortByName) tr("По имени", "By name") else tr("По дате", "By date"))
+                }
                 IconButton(onClick = pickImport) {
                     Icon(Icons.Filled.Download, contentDescription = tr("Импорт точек", "Import waypoints"))
                 }

@@ -70,6 +70,8 @@ import kotlin.math.abs
 
 @Composable
 fun JournalScreen(
+    /** True = the «Маршруты» tab: only planned routes; false = recorded tracks. */
+    routesOnly: Boolean = false,
     summaries: List<TrackSummary>,
     loadTrack: (id: String) -> Track?,
     onShow: (track: Track, follow: Boolean) -> Unit,
@@ -90,8 +92,11 @@ fun JournalScreen(
     var showTrash by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(ru.azimut.app.core.model.TrackSort.DATE) }
-    val shown = remember(summaries, query, sort) {
-        ru.azimut.app.core.model.TrackListOps.filterSort(summaries, query, sort)
+    val scoped = remember(summaries, routesOnly) {
+        if (routesOnly) summaries.filter { it.kind == KIND_ROUTE } else summaries.filter { it.kind != KIND_ROUTE }
+    }
+    val shown = remember(scoped, query, sort) {
+        ru.azimut.app.core.model.TrackListOps.filterSort(scoped, query, sort)
     }
     var confirmPurge by remember { mutableStateOf<ru.azimut.app.core.storage.TrashedTrack?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -207,7 +212,10 @@ fun JournalScreen(
 
     Column(Modifier.fillMaxSize()) {
         BackHeader(tr("Коллекции", "Collections"), onBack)
-        ru.azimut.app.ui.components.CollectionsTabs(ru.azimut.app.Screen.Journal, onSwitchTab)
+        ru.azimut.app.ui.components.CollectionsTabs(
+                if (routesOnly) ru.azimut.app.Screen.Routes else ru.azimut.app.Screen.Journal,
+                onSwitchTab,
+            )
         if (trash.isNotEmpty()) {
             TextButton(onClick = { showTrash = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
                 Text(tr("Недавно удалённые (${trash.size})", "Recently deleted (${trash.size})"))
@@ -237,12 +245,19 @@ fun JournalScreen(
                 }
             }
         }
-        if (summaries.isEmpty()) {
+        if (shown.isEmpty()) {
             EmptyState(
-                tr(
-                    "Поездок пока нет. Нажмите «Записать» на карте или сохраните построенный маршрут.",
-                    "No trips yet. Record a track or save a built route.",
-                )
+                if (routesOnly) {
+                    tr(
+                        "Маршрутов пока нет. Постройте маршрут на карте и сохраните его.",
+                        "No routes yet. Build a route on the map and save it.",
+                    )
+                } else {
+                    tr(
+                        "Поездок пока нет. Нажмите «Записать» на карте или сохраните построенный маршрут.",
+                        "No trips yet. Record a track or save a built route.",
+                    )
+                }
             )
         } else {
             LazyColumn(
@@ -368,9 +383,14 @@ fun JournalScreen(
                             )
                             Spacer(Modifier.height(6.dp))
                             val data = if (expanded) expandedData?.takeIf { it.first.id == track.id } else null
+                            Text(
+                                formatDistance(track.distanceMeters) + " · " +
+                                    (track.durationSeconds?.let { formatDuration(it * 1000) } ?: "—") +
+                                    " · " + track.pointCount + " " + tr("точ.", "pts"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Stat(tr("Длина", "Distance"), formatDistance(track.distanceMeters))
-                                Stat(tr("Точек", "Points"), track.pointCount.toString())
                                 if (data != null) {
                                     val t = data.first
                                     val plannedSec = t.plannedTimeSeconds

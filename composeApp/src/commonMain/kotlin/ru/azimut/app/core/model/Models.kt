@@ -80,6 +80,8 @@ data class TrackSummary(
     val susanin: Boolean = false,
     val kind: String = KIND_TRACK,
     val fordCount: Int = 0,
+    /** Wall-clock duration of a recorded track (last point − start) or router time for plans; null = unknown. */
+    val durationSeconds: Long? = null,
 )
 
 fun Track.toSummary(): TrackSummary = TrackSummary(
@@ -92,6 +94,11 @@ fun Track.toSummary(): TrackSummary = TrackSummary(
     susanin = susanin,
     kind = kind,
     fordCount = fordCount,
+    durationSeconds = if (kind == KIND_ROUTE) {
+        plannedTimeSeconds?.toLong()
+    } else {
+        points.lastOrNull()?.timeMillis?.takeIf { it > startedAt }?.let { (it - startedAt) / 1000 }
+    },
 )
 
 @Serializable

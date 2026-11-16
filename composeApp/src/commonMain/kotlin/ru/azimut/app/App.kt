@@ -67,6 +67,7 @@ enum class Screen {
     Map,
     Points,
     Journal,
+    Routes,
     Settings,
     Help,
     About,
@@ -505,7 +506,8 @@ fun App() {
                     onBack = { goBack() },
                 )
 
-                Screen.Journal -> JournalScreen(
+                Screen.Journal, Screen.Routes -> JournalScreen(
+                    routesOnly = screen == Screen.Routes,
                     summaries = summaries,
                     loadTrack = { id -> trackStore.load(id) },
                     onShow = { track, follow ->

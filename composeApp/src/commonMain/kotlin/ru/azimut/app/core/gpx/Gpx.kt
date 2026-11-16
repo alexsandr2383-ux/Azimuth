@@ -43,6 +43,9 @@ object Gpx {
         sb.append("    <type>${escape(track.profile)}</type>\n")
         if (track.kind != KIND_TRACK) {
             sb.append("    <extensions><azimut:kind>${escape(track.kind)}</azimut:kind></extensions>\n")
+            track.plannedTimeSeconds?.let {
+                sb.append("    <extensions><azimut:plannedTimeSeconds>${formatFixed(it, 0)}</azimut:plannedTimeSeconds></extensions>\n")
+            }
         }
         sb.append("    <trkseg>\n")
         for (p in track.points) {
@@ -117,6 +120,7 @@ object Gpx {
             val name = tagValue(body, "name")?.let(::unescape).orEmpty()
             val profile = normalizeProfile(tagValue(body, "type")?.let(::unescape), fallbackProfile)
             val startedAt = points.firstOrNull { it.timeMillis > 0 }?.timeMillis
+                ?: metadataTime(xml)
                 ?: Clock.System.now().toEpochMilliseconds()
             var distance = 0.0
             for (i in 1 until points.size) {
@@ -135,6 +139,7 @@ object Gpx {
                     distanceMeters = distance,
                     susanin = points.any { it.susanin },
                     kind = tagValue(body, "azimut:kind")?.let(::unescape) ?: KIND_TRACK,
+                    plannedTimeSeconds = tagValue(body, "azimut:plannedTimeSeconds")?.let(::unescape)?.toDoubleOrNull(),
                 )
             )
         }
@@ -281,6 +286,12 @@ object Gpx {
     }
 
     private fun coord(value: Double): String = formatFixed(value, 7)
+
+    /** <metadata><time> of the document — the start time for point-less routes. */
+    private fun metadataTime(xml: String): Long? =
+        Regex("<metadata>.*?<time>(.*?)</time>", RegexOption.DOT_MATCHES_ALL)
+            .find(xml)?.groupValues?.get(1)?.trim()
+            ?.let { runCatching { Instant.parse(it).toEpochMilliseconds() }.getOrNull() }
 
     private fun iso(timeMillis: Long): String =
         Instant.fromEpochMilliseconds(timeMillis).toString()

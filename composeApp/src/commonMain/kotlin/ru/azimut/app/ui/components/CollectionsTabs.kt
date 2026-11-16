@@ -28,6 +28,7 @@ fun CollectionsTabs(current: Screen, onSwitch: (Screen) -> Unit) {
         Row(Modifier.fillMaxWidth()) {
             listOf(
                 Screen.Journal to tr("Треки", "Tracks"),
+                Screen.Routes to tr("Маршруты", "Routes"),
                 Screen.Points to tr("Точки", "Points"),
             ).forEach { (screen, title) ->
                 val selected = current == screen
