@@ -108,6 +108,10 @@ data class DemSample(val heightMeters: Double?, val fromTile: String?)
 open class DemStore(private val dir: String = "dem") {
     private val cache = HashMap<String, DemTile>()
     private val cacheOrder = ArrayDeque<String>()
+
+    // Tiles with no file in [dir]: without this set a missing tile would rescan the
+    // directory on every sample (~440k times for one hillshade render).
+    private val missing = HashSet<String>()
     val availableTiles: Set<String> get() = cache.keys
 
     var lastMiss = false
@@ -116,6 +120,7 @@ open class DemStore(private val dir: String = "dem") {
     fun clearCache() {
         cache.clear()
         cacheOrder.clear()
+        missing.clear()
     }
 
     fun cachedTileNames(): List<String> = cache.keys.toList()
@@ -143,21 +148,31 @@ open class DemStore(private val dir: String = "dem") {
     /** Height of the tile grid for [name], loading the file on demand. */
     private fun tileFor(name: String, lat: Double, lon: Double): DemTile? {
         cache[name]?.let { if (it.covers(lat, lon)) return it else return null }
+        if (name in missing) return null
         val files = PlatformFiles.listFiles(dir)
         val match = files.firstOrNull { f ->
             val base = f.substringBeforeLast('.')
             DemIndex.tileBounds(base)?.let { (lat0, lon0) ->
                 lat >= lat0 && lat < lat0 + 1 && lon >= lon0 && lon < lon0 + 1
             } == true
-        } ?: return null
-        val bytes = PlatformFiles.readBytes("$dir/$match") ?: return null
+        } ?: run {
+            missing.add(name)
+            return null
+        }
+        val bytes = PlatformFiles.readBytes("$dir/$match") ?: run {
+            missing.add(name)
+            return null
+        }
         val tile = runCatching {
             if (match.endsWith(".hgt", ignoreCase = true)) {
                 HgtReader.parse(match, bytes)
             } else {
                 GeoTiffReader.parse(bytes)
             }
-        }.getOrNull() ?: return null
+        }.getOrNull() ?: run {
+            missing.add(name)
+            return null
+        }
         cache[name] = tile
         cacheOrder.addLast(name)
         while (cacheOrder.size > MAX_CACHED_TILES) {

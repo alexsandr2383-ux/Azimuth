@@ -711,16 +711,25 @@ fun MapScreen(
         } else {
             null
         }
-        val hillshadeTiles = remember(hillshadeKey) {
-            if (hillshadeKey == null) return@remember emptyList<HillshadeTile>()
-            runCatching {
-                buildList {
-                    for (part in hillshadeKey.split(",")) {
-                        val bounds = ru.azimut.app.core.dem.DemIndex.tileBounds(part.trim()) ?: continue
-                        DemShade.tileFor(demStore, bounds.first + 0.5, bounds.second + 0.5)?.let { add(it) }
+        // Rendered off the main thread: one tile is a 384x384 Horn pass over the DEM,
+        // and doing it synchronously in composition froze the whole UI (white screen
+        // on restart, since the setting persists and the render ran at first frame).
+        var hillshadeTiles by remember { mutableStateOf(emptyList<HillshadeTile>()) }
+        LaunchedEffect(hillshadeKey) {
+            if (hillshadeKey == null) {
+                hillshadeTiles = emptyList()
+                return@LaunchedEffect
+            }
+            hillshadeTiles = withContext(Dispatchers.Default) {
+                runCatching {
+                    buildList {
+                        for (part in hillshadeKey.split(",")) {
+                            val bounds = ru.azimut.app.core.dem.DemIndex.tileBounds(part.trim()) ?: continue
+                            DemShade.tileFor(demStore, bounds.first + 0.5, bounds.second + 0.5)?.let { add(it) }
+                        }
                     }
-                }
-            }.getOrDefault(emptyList())
+                }.getOrDefault(emptyList())
+            }
         }
         val areaDownloadProgressPrefix = tr("Загрузка карт: ", "Downloading maps: ")
         val areaDownloadDoneMessage = tr("Область сохранена для офлайн-просмотра.", "Area saved for offline viewing.")
