@@ -399,6 +399,15 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
+                SwitchRow(
+                    tr("POI вместе с областью карт", "POI with map area download"),
+                    settings.poiAutoLoad,
+                    { onSettingsChange(settings.copy(poiAutoLoad = it)) },
+                    tr(
+                        "При скачивании области карт загружать точки интереса (нужна сеть)",
+                        "When downloading a map area, fetch POI for it too (needs network)",
+                    ),
+                )
             AccordionSection(
                 tr("Запись и треки", "Recording & tracks"),
                 expanded("tracking"),

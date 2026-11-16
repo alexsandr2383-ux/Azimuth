@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
@@ -51,6 +52,7 @@ internal fun MapMenuSheet(
     onSettings: () -> Unit,
     onHelp: () -> Unit,
     onAbout: () -> Unit,
+    onDownloadPoi: () -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -64,6 +66,8 @@ internal fun MapMenuSheet(
         ) {
             MenuGroup {
                 MenuRow(Icons.Filled.Navigation, Color(0xFF0F766E), tr("К координатам", "Go to coordinates"), onGoto)
+                MenuDivider()
+                MenuRow(Icons.Filled.CloudDownload, Color(0xFF0E7490), tr("Загрузить POI области", "Download area POI"), onDownloadPoi)
             }
             MenuGroup {
                 MenuRow(Icons.Filled.Place, Color(0xFF65A30D), tr("Коллекции", "Collections"), onJournal)

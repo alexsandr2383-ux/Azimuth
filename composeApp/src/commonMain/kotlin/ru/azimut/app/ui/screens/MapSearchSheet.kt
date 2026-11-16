@@ -71,14 +71,19 @@ internal fun MapSearchSheet(
                 label = { Text(tr("Название точки или координаты", "Point name or coordinates")) },
             )
             if (q.isEmpty()) {
-                Text(
-                    tr(
-                        "Введите название сохранённой точки или координаты, например 55.75, 37.62",
-                        "Type a saved point name or coordinates, e.g. 55.75, 37.62",
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF8E8E93),
-                )
+                // Show the saved points right away instead of an empty hint.
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)) {
+                    LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                        items(points.take(20), key = { it.id }) { point ->
+                            if (point !== points.first()) HorizontalDivider(Modifier.padding(start = 16.dp), color = Color(0xFFE5E5EA))
+                            ResultRow(
+                                Icons.Filled.Place,
+                                point.name.ifBlank { tr("Без названия", "Unnamed") },
+                                point.description.ifBlank { "${point.lat}, ${point.lon}" },
+                            ) { onGo(GeoPoint(point.lat, point.lon)); onDismiss() }
+                        }
+                    }
+                }
             } else if (coords == null && matches.isEmpty()) {
                 Text(
                     tr("Ничего не найдено", "Nothing found"),

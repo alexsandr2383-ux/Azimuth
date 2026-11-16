@@ -202,9 +202,14 @@ fun MapScreen(
     // Actual camera bearing reported by the map; null on platforms without manual rotation.
     var cameraBearing by remember { mutableStateOf<Float?>(null) }
     var orientationReset by remember { mutableStateOf(0) }
-    val visiblePoints = remember(points, settings.showPois, settings.poiTypes) {
-        if (!settings.showPois) emptyList()
-        else points.filter { it.poiType in settings.poiTypes }
+    var poiVersion by remember { mutableStateOf(0) }
+    val visiblePoints = remember(points, settings.showPois, settings.poiTypes, poiVersion) {
+        if (!settings.showPois) {
+            emptyList()
+        } else {
+            points.filter { it.poiType in settings.poiTypes } +
+                ru.azimut.app.core.poi.PoiCache.asWaypoints().filter { it.poiType in settings.poiTypes }
+        }
     }
     val poiTypeCounts = remember(points) { points.groupingBy { it.poiType }.eachCount() }
 
@@ -795,6 +800,50 @@ fun MapScreen(
         }
         val latestSettings by rememberUpdatedState(settings)
         val changeSettings by rememberUpdatedState(onSettingsChange)
+
+    var poiBusy by remember { mutableStateOf(false) }
+
+    // POI for the area around the camera: auto alongside the map area download, or
+    // explicitly from the menu. The bbox span follows the zoom level.
+    val poiOkPrefix = tr("POI загружены: ", "POI downloaded: ")
+    val poiEmptyMsg = tr("В этой области POI не найдены.", "No POI found in this area.")
+    val poiNoNetMsg = tr("Нет сети или сервис недоступен — POI не загружены.", "No network or service unreachable — POI not downloaded.")
+    val poiBusyMsg = tr("Сервис POI занят, попробуйте позже.", "POI service busy, try later.")
+    val poiFailedMsg = tr("Не удалось загрузить POI.", "Could not download POI.")
+    fun downloadPoiHere() {
+        if (poiBusy) return
+        val cam = camera ?: currentGeo?.let { ru.azimut.app.ui.map.MapCamera(it.lat, it.lon, 14.0) }
+        if (cam == null) {
+            message = noFixMessage
+            return
+        }
+        val span = when {
+            cam.zoom >= 13 -> 0.05
+            cam.zoom >= 11 -> 0.15
+            cam.zoom >= 9 -> 0.4
+            else -> 0.8
+        }
+        poiBusy = true
+        routeScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                ru.azimut.app.core.poi.PoiCache.fetchRegion(
+                    cam.lat - span, cam.lon - span, cam.lat + span, cam.lon + span,
+                )
+            }
+            poiBusy = false
+            poiVersion++
+            message = when (result.outcome) {
+                ru.azimut.app.core.poi.PoiCache.Outcome.OK -> poiOkPrefix + result.count
+                ru.azimut.app.core.poi.PoiCache.Outcome.EMPTY -> poiEmptyMsg
+                ru.azimut.app.core.poi.PoiCache.Outcome.NO_NET -> poiNoNetMsg
+                ru.azimut.app.core.poi.PoiCache.Outcome.SERVER_BUSY -> poiBusyMsg
+                ru.azimut.app.core.poi.PoiCache.Outcome.FAILED -> poiFailedMsg
+            }
+        }
+    }
+    LaunchedEffect(areaDownload) {
+        if (areaDownload > 0 && latestSettings.poiAutoLoad) downloadPoiHere()
+    }
         LaunchedEffect(camera) {
             val c = camera ?: return@LaunchedEffect
             if (PlatformInfo.isDesktop) return@LaunchedEffect
@@ -1235,7 +1284,7 @@ fun MapScreen(
             MapControl(Icons.Filled.Search, tr("Поиск", "Search"), size = controlSize) { showSearch = true }
             if (showSearch) {
                 MapSearchSheet(
-                    points = points,
+                    points = points + remember(poiVersion) { ru.azimut.app.core.poi.PoiCache.asWaypoints() },
                     onGo = { gotoTarget = it; gotoKey++ },
                     onDismiss = { showSearch = false },
                 )
@@ -1251,6 +1300,7 @@ fun MapScreen(
                     onSettings = { showMenu = false; onOpenSettings() },
                     onHelp = { showMenu = false; onOpenHelp() },
                     onAbout = { showMenu = false; onOpenAbout() },
+                    onDownloadPoi = { showMenu = false; downloadPoiHere() },
                 )
             }
 

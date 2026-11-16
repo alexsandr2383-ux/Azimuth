@@ -46,6 +46,9 @@ actual object PlatformHttp {
             } finally {
                 connection.disconnect()
             }
+        }.onFailure {
+            // Silent nulls look like "no network" in callers; keep the real cause visible.
+            android.util.Log.w("AzimuthHttp", "request $method $url failed", it)
         }.getOrNull()
     }
 }

@@ -136,6 +136,8 @@ data class AppSettings(
     val skipStops: Boolean = false,
     /** Yellow dashed sunset-azimuth line from the current position (off: it reads as noise). */
     val showSunsetAzimuth: Boolean = false,
+    /** Download POI for the area together with the offline map area download. */
+    val poiAutoLoad: Boolean = true,
     val backgroundRecording: Boolean = true,
     val autoScan: Boolean = true,
     val weatherRelief: Boolean = true,
