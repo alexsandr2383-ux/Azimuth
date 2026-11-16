@@ -1,6 +1,8 @@
 package ru.azimut.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,10 +16,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +50,7 @@ import ru.azimut.app.core.compare.OFF_ROUTE_THRESHOLD_M
 import ru.azimut.app.core.compare.TrackCompareResult
 import ru.azimut.app.core.compare.compareTracks
 import ru.azimut.app.core.gpx.Gpx
+import ru.azimut.app.ui.components.ElevationChart
 import ru.azimut.app.core.model.KIND_ROUTE
 import ru.azimut.app.core.model.Track
 import ru.azimut.app.core.model.TrackSummary
@@ -91,12 +99,19 @@ fun JournalScreen(
     var precheck by remember { mutableStateOf<Pair<Track, ru.azimut.app.core.export.TrackPrecheck>?>(null) }
     var exporting by remember { mutableStateOf(false) }
     var comparePicker by remember { mutableStateOf<Track?>(null) }
+
+    // Expanded track card: full track + DEM profile are loaded lazily on first expand.
+    var expandedId by remember { mutableStateOf<String?>(null) }
+    var expandedData by remember {
+        mutableStateOf<Pair<Track, ru.azimut.app.core.dem.ElevationProfile>?>(null)
+    }
     var compare by remember { mutableStateOf<Triple<Track, Track, TrackCompareResult>?>(null) }
     val loadFailed = tr("Не удалось открыть трек.", "Could not open the track.")
     val noPlansMessage = tr(
         "Нет сохранённых маршрутов для сравнения. Постройте маршрут на карте и сохраните его.",
         "No saved routes to compare. Build a route on the map and save it first.",
     )
+
     val savedPrefix = tr("GPX сохранён: ", "GPX saved: ")
     val saveFailed = tr("Не удалось сохранить GPX.", "Could not save GPX.")
     val saveGpx = rememberGpxSaver(onSaved = { message = savedPrefix + it }, onError = { message = saveFailed })
@@ -168,6 +183,28 @@ fun JournalScreen(
         }
     }
 
+    fun toggleExpand(summary: TrackSummary) {
+        if (expandedId == summary.id) {
+            expandedId = null
+            expandedData = null
+            return
+        }
+        expandedId = summary.id
+        expandedData = null
+        scope.launch {
+            val track = withContext(Dispatchers.IO) { loadTrack(summary.id) }
+            if (track == null) {
+                message = loadFailed
+                expandedId = null
+                return@launch
+            }
+            val profile = withContext(Dispatchers.Default) {
+                ru.azimut.app.core.dem.TrackElevation.analyze(track, demStore)
+            }
+            if (expandedId == summary.id) expandedData = track to profile
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         BackHeader(tr("Коллекции", "Collections"), onBack)
         ru.azimut.app.ui.components.CollectionsTabs(ru.azimut.app.Screen.Journal, onSwitchTab)
@@ -214,7 +251,8 @@ fun JournalScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(shown, key = { it.id }) { track ->
-                    Card(Modifier.fillMaxWidth()) {
+                    val expanded = expandedId == track.id
+                    Card(Modifier.fillMaxWidth().clickable { toggleExpand(track) }) {
                         Column(Modifier.padding(start = 12.dp, top = 12.dp, end = 4.dp, bottom = 4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(track.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -232,6 +270,96 @@ fun JournalScreen(
                                         color = MaterialTheme.colorScheme.secondary,
                                     )
                                 }
+                                IconButton(onClick = { toggleExpand(track) }) {
+                                    Icon(
+                                        if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                        contentDescription = tr("Подробнее", "Details"),
+                                    )
+                                }
+                                var menuOpen by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(onClick = { menuOpen = true }) {
+                                        Icon(Icons.Filled.MoreVert, contentDescription = tr("Действия", "Actions"))
+                                    }
+                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(tr("На карте", "On map")) },
+                                            onClick = { menuOpen = false; withTrack(track) { onShow(it, false) } },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(tr("Вести", "Navigate")) },
+                                            onClick = { menuOpen = false; withTrack(track) { onShow(it, true) } },
+                                        )
+                                        if (track.kind != KIND_ROUTE) {
+                                            DropdownMenuItem(
+                                                text = { Text(tr("Сравнить", "Compare")) },
+                                                onClick = {
+                                                    menuOpen = false
+                                                    withTrack(track) { t ->
+                                                        if (summaries.none { it.kind == KIND_ROUTE }) {
+                                                            message = noPlansMessage
+                                                        } else {
+                                                            comparePicker = t
+                                                        }
+                                                    }
+                                                },
+                                            )
+                                        }
+                                        DropdownMenuItem(
+                                            text = { Text("GPX") },
+                                            onClick = {
+                                                menuOpen = false
+                                                withTrack(track) { t ->
+                                                    // GPX serialization of a long track — off the UI thread.
+                                                    scope.launch {
+                                                        val content = withContext(Dispatchers.Default) { Gpx.writeTrack(t) }
+                                                        saveGpx(gpxFileName(t.name), content)
+                                                    }
+                                                }
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(tr("Проверка", "Precheck")) },
+                                            onClick = {
+                                                menuOpen = false
+                                                withTrack(track) { t ->
+                                                    scope.launch {
+                                                        val result = withContext(Dispatchers.Default) {
+                                                            val zones = ru.azimut.app.core.protected.ProtectedAreas.allPolygons()
+                                                            ru.azimut.app.core.export.TrackPrecheckEngine.check(
+                                                                t, demStore, zones, zones.isNotEmpty(),
+                                                            )
+                                                        }
+                                                        precheck = t to result
+                                                    }
+                                                }
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("PNG") },
+                                            onClick = { menuOpen = false; withTrack(track) { exportSheet(it, pdf = false) } },
+                                            enabled = !exporting,
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("PDF") },
+                                            onClick = { menuOpen = false; withTrack(track) { exportSheet(it, pdf = true) } },
+                                            enabled = !exporting,
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(tr("Показать/скрыть на карте", "Show/hide on map")) },
+                                            onClick = { menuOpen = false; withTrack(track) { onToggleShown(it) } },
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    tr("Удалить", "Delete"),
+                                                    color = MaterialTheme.colorScheme.error,
+                                                )
+                                            },
+                                            onClick = { menuOpen = false; confirmDelete = track },
+                                        )
+                                    }
+                                }
                             }
                             Text(
                                 "${formatDate(track.startedAt)} · ${TransportProfile.byId(track.profile).title(lang)}",
@@ -239,73 +367,36 @@ fun JournalScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Spacer(Modifier.height(6.dp))
+                            val data = if (expanded) expandedData?.takeIf { it.first.id == track.id } else null
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 Stat(tr("Длина", "Distance"), formatDistance(track.distanceMeters))
                                 Stat(tr("Точек", "Points"), track.pointCount.toString())
+                                if (data != null) {
+                                    val t = data.first
+                                    val plannedSec = t.plannedTimeSeconds
+                                    val durationMs = if (t.kind == KIND_ROUTE && plannedSec != null) {
+                                        (plannedSec * 1000).toLong()
+                                    } else {
+                                        val last = t.points.lastOrNull()?.timeMillis ?: 0
+                                        (last - t.startedAt).coerceAtLeast(0)
+                                    }
+                                    Stat(tr("Время", "Time"), formatDuration(durationMs))
+                                    if (data.second.hasData) {
+                                        Stat(tr("Набор", "Ascend"), "↑ ${data.second.ascendMeters.toInt()} м")
+                                        Stat(tr("Сброс", "Descend"), "↓ ${data.second.descendMeters.toInt()} м")
+                                    }
+                                }
                             }
-                            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-                            androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
-                                TextButton(onClick = { withTrack(track) { onShow(it, false) } }) {
-                                    Text(tr("На карте", "On map"))
-                                }
-                                TextButton(onClick = { withTrack(track) { onShow(it, true) } }) {
-                                    Text(tr("Вести", "Navigate"))
-                                }
-                                if (track.kind != KIND_ROUTE) {
-                                    TextButton(onClick = {
-                                        withTrack(track) { t ->
-                                            if (summaries.none { it.kind == KIND_ROUTE }) {
-                                                message = noPlansMessage
-                                            } else {
-                                                comparePicker = t
-                                            }
-                                        }
-                                    }) {
-                                        Text(tr("Сравнить", "Compare"))
-                                    }
-                                }
-                                TextButton(onClick = {
-                                    withTrack(track) { t ->
-                                        // GPX serialization of a long track — off the UI thread.
-                                        scope.launch {
-                                            val content = withContext(Dispatchers.Default) { Gpx.writeTrack(t) }
-                                            saveGpx(gpxFileName(t.name), content)
-                                        }
-                                    }
-                                }) {
-                                    Text("GPX")
-                                }
-                                TextButton(onClick = {
-                                    withTrack(track) { t ->
-                                        scope.launch {
-                                            val result = withContext(Dispatchers.Default) {
-                                                val zones = ru.azimut.app.core.protected.ProtectedAreas.allPolygons()
-                                                ru.azimut.app.core.export.TrackPrecheckEngine.check(
-                                                    t, demStore, zones, zones.isNotEmpty(),
-                                                )
-                                            }
-                                            precheck = t to result
-                                        }
-                                    }
-                                }) {
-                                    Text(tr("Проверка", "Precheck"))
-                                }
-                                TextButton(onClick = { withTrack(track) { exportSheet(it, pdf = false) } }, enabled = !exporting) {
-                                    Text("PNG")
-                                }
-                                TextButton(onClick = { withTrack(track) { exportSheet(it, pdf = true) } }, enabled = !exporting) {
-                                    Text("PDF")
-                                }
-                                Spacer(Modifier.weight(1f))
-                                IconButton(onClick = { withTrack(track) { onToggleShown(it) } }) {
-                                    Icon(
-                                        if (track.id in shownTrackIds) Icons.Filled.Visibility
-                                        else Icons.Filled.VisibilityOff,
-                                        contentDescription = tr("Показать/скрыть на карте", "Show/hide on map"),
+                            if (expanded) {
+                                Spacer(Modifier.height(6.dp))
+                                if (data == null) {
+                                    Text(
+                                        tr("Загрузка…", "Loading…"),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
-                                }
-                                IconButton(onClick = { confirmDelete = track }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = tr("Удалить", "Delete"))
+                                } else {
+                                    ElevationChart(data.second.heights, Modifier.fillMaxWidth())
                                 }
                             }
                         }
@@ -666,4 +757,13 @@ private fun formatDate(millis: Long): String {
     val hh = dt.hour.toString().padStart(2, '0')
     val mm = dt.minute.toString().padStart(2, '0')
     return "$day $hh:$mm"
+}
+
+/** "5 ч 47 м" / "12 мин"; recorded from the first to the last point, plans use router time. */
+private fun formatDuration(millis: Long): String {
+    if (millis <= 0) return "—"
+    val totalMin = millis / 60000
+    val h = totalMin / 60
+    val m = totalMin % 60
+    return if (h > 0) "$h ч $m м" else "$m мин"
 }
