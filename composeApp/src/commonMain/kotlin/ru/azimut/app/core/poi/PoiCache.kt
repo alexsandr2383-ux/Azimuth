@@ -42,6 +42,8 @@ object PoiCache {
         val lonMax: Double,
         val createdAt: Long,
         val points: List<Entry>,
+        // ODbL: the cached OSM data must keep its source attribution.
+        val source: String = "© OpenStreetMap contributors (Overpass), ODbL",
     )
 
     enum class Outcome { OK, EMPTY, NO_NET, SERVER_BUSY, FAILED }

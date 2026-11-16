@@ -25,7 +25,6 @@ object MapStyles {
     val satelliteOptions = listOf(
         "satellite_hd" to Pair("Esri World Imagery", "Esri World Imagery"),
         "satellite_esri" to Pair("Esri Satellite", "Esri Satellite"),
-        "satellite_google" to Pair("Google Satellite", "Google Satellite"),
     )
 
     val all: List<MapStyle> get() = builtIn + UserXyz.asStyles() + UserMaps.styles

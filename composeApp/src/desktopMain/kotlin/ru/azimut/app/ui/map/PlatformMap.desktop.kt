@@ -1543,8 +1543,10 @@ private class TileRepository(private val cacheRoot: File) {
             "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
         "satellite_esri" ->
             "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
+        // "satellite_google" existed once; Google tile access from third-party apps
+        // violates their ToS, so saved settings fall back to Esri imagery.
         "satellite_google" ->
-            "https://mt1.google.com/vt/lyrs=s&x=$x&y=$y&z=$z"
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
         "places" ->
             "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/$z/$y/$x"
         else -> MapStyles.byCacheLayer(layer)?.let { MapStyles.url(it, z, x, y) }

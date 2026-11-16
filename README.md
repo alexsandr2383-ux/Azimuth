@@ -47,6 +47,21 @@ MapLibre (Android view + Desktop canvas), kotlinx.serialization, Gradle 8 / JDK 
 треки, точки, карты, DEM, POI, фото, голосовые заметки, резервные копии. Папка переносима:
 скопировав её, вы переносите все данные на другое устройство или на десктоп.
 
+## Сторонние библиотеки и данные
+
+- [MapLibre Android](https://github.com/maplibre/maplibre-native) — BSD-2-Clause
+- [BRouter](https://github.com/abrensch/brouter) (jar `composeApp/libs/`) — MIT
+- Compose Multiplatform, kotlinx.* — Apache-2.0
+- sqlite-jdbc — Public Domain; jSerialComm — LGPL-2.1
+- Материальные иконки — Apache-2.0
+
+Данные:
+- Карты и POI: © OpenStreetMap contributors (ODbL), тайлы Esri/HOT/CyclOSM/OpenTopoMap —
+  по условиям соответствующих сервисов, атрибуция показывается на карте.
+- Спутниковые снимки: Esri World Imagery (© Esri, Maxar, Earthstar Geographics).
+- DEM: импортируется пользователем (SRTM/Copernicus), не распространяется с приложением.
+- Google Maps/Google Satellite не используются (ограничения Google ToS).
+
 ## Автор
 
 Скляров Александр Михайлович — alexsandr23.83@mail.ru
