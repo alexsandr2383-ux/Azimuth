@@ -140,6 +140,7 @@ actual fun PlatformMap(
     gotoTarget: GeoPoint?,
     gotoKey: Int,
     hillshadeTiles: List<ru.azimut.app.core.dem.HillshadeTile>,
+    headingDegrees: Float?,
     onDownloadCorridorDone: () -> Unit,
     onTap: (GeoPoint) -> Unit,
     onSecondaryTap: (GeoPoint, Offset) -> Unit,

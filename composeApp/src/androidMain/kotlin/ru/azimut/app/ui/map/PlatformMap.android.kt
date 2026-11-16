@@ -81,6 +81,7 @@ actual fun PlatformMap(
     gotoTarget: GeoPoint?,
     gotoKey: Int,
     hillshadeTiles: List<ru.azimut.app.core.dem.HillshadeTile>,
+    headingDegrees: Float?,
     onDownloadCorridorDone: () -> Unit,
     onTap: (GeoPoint) -> Unit,
     onSecondaryTap: (GeoPoint, Offset) -> Unit,
@@ -278,17 +279,22 @@ actual fun PlatformMap(
         source.setGeoJson(FeatureCollection.fromFeatures(features.toTypedArray()))
     }
 
-    LaunchedEffect(currentLocation, styleVersion) {
+    LaunchedEffect(currentLocation, headingDegrees, styleVersion) {
         val source = map?.style?.getSourceAs<GeoJsonSource>("location-src") ?: return@LaunchedEffect
-        source.setGeoJson(
-            if (currentLocation != null) {
+        if (currentLocation == null) {
+            source.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
+        } else {
+            val props = com.google.gson.JsonObject()
+            props.addProperty("heading", headingDegrees ?: 0f)
+            source.setGeoJson(
                 FeatureCollection.fromFeature(
-                    Feature.fromGeometry(Point.fromLngLat(currentLocation.lon, currentLocation.lat))
+                    Feature.fromGeometry(
+                        Point.fromLngLat(currentLocation.lon, currentLocation.lat),
+                        props,
+                    )
                 )
-            } else {
-                FeatureCollection.fromFeatures(emptyArray())
-            }
-        )
+            )
+        }
     }
 
     // Saved tracks from the journal: thin background lines under everything else.
@@ -635,15 +641,47 @@ private fun ensureSources(style: Style) {
     }
     if (style.getSource("location-src") == null) {
         style.addSource(GeoJsonSource("location-src", FeatureCollection.fromFeatures(emptyArray())))
+        style.addImage("location-arrow", locationArrowBitmap())
         style.addLayer(
-            CircleLayer("location-layer", "location-src").withProperties(
-                PropertyFactory.circleColor("#2196F3"),
-                PropertyFactory.circleRadius(7f),
-                PropertyFactory.circleStrokeWidth(2f),
-                PropertyFactory.circleStrokeColor("#FFFFFF"),
+            org.maplibre.android.style.layers.SymbolLayer("location-layer", "location-src").withProperties(
+                PropertyFactory.iconImage("location-arrow"),
+                PropertyFactory.iconRotate(
+                    Expression.coalesce(Expression.get("heading"), Expression.literal(0f))
+                ),
+                PropertyFactory.iconRotationAlignment(org.maplibre.android.style.layers.Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
             )
         )
     }
+}
+
+/**
+ * Compass arrow for the current location: blue pointer with a thin white outline,
+ * tip = north at iconRotate 0. Drawn in code — no per-density assets. MAP rotation
+ * alignment keeps the world azimuth correct when the map itself is rotated (heading-up).
+ */
+internal fun locationArrowBitmap(): android.graphics.Bitmap {
+    val size = 96
+    val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    val arrow = android.graphics.Path()
+    arrow.moveTo(size / 2f, size * 0.12f)
+    arrow.lineTo(size * 0.80f, size * 0.84f)
+    arrow.lineTo(size / 2f, size * 0.66f)
+    arrow.lineTo(size * 0.20f, size * 0.84f)
+    arrow.close()
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    // Thin white rim so the arrow stays visible on any base layer.
+    paint.style = android.graphics.Paint.Style.STROKE
+    paint.strokeWidth = 8f
+    paint.strokeJoin = android.graphics.Paint.Join.ROUND
+    paint.color = android.graphics.Color.WHITE
+    canvas.drawPath(arrow, paint)
+    paint.style = android.graphics.Paint.Style.FILL
+    paint.color = android.graphics.Color.parseColor("#1565C0")
+    canvas.drawPath(arrow, paint)
+    return bmp
 }
 
 /** Grade percent -> color bucket 1..4 (flat, gentle, steep, very steep). */

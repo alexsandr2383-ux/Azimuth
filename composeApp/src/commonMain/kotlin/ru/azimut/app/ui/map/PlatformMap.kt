@@ -61,6 +61,8 @@ expect fun PlatformMap(
     gotoKey: Int = 0,
     /** Pre-rendered hillshade tiles from the DEM (settings.hillshade). */
     hillshadeTiles: List<ru.azimut.app.core.dem.HillshadeTile> = emptyList(),
+    /** Phone compass heading in degrees true — rotates the location arrow; null = unknown. */
+    headingDegrees: Float? = null,
     onDownloadCorridorDone: () -> Unit = {},
     onTap: (GeoPoint) -> Unit,
     onSecondaryTap: (GeoPoint, Offset) -> Unit,

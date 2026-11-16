@@ -430,6 +430,15 @@ fun SettingsScreen(
                     tr("Реже GPS, тусклее экран", "Less frequent GPS, dimmer screen"),
                 )
                 SwitchRow(
+                    tr("Не писать на остановках", "Skip stops"),
+                    settings.skipStops,
+                    { onSettingsChange(settings.copy(skipStops = it)) },
+                    tr(
+                        "Стоячие точки не добавляются в трек",
+                        "Standing-still fixes are not added to the track",
+                    ),
+                )
+                SwitchRow(
                     tr("Режим Сусанина", "Explorer Mode"),
                     settings.susaninEnabled,
                     {
@@ -620,6 +629,15 @@ fun SettingsScreen(
                     tr(
                         "Восход/закат корректируются по DEM (NavData/dem)",
                         "Sunrise/sunset are corrected from the DEM (NavData/dem)",
+                    ),
+                )
+                SwitchRow(
+                    tr("Линия заката на карте", "Sunset line on map"),
+                    settings.showSunsetAzimuth,
+                    { onSettingsChange(settings.copy(showSunsetAzimuth = it)) },
+                    tr(
+                        "Жёлтый пунктир от позиции в сторону заката",
+                        "Yellow dashed line from your position toward sunset",
                     ),
                 )
             }

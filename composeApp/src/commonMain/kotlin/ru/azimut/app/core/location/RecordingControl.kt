@@ -7,14 +7,14 @@ import ru.azimut.app.core.storage.SettingsStore
 
 /** Start/stop recording from any entry point (map button, tray, hotkey). */
 object RecordingControl {
-    fun start(settings: AppSettings) {
-        TrackRecorder.configure(settings.recordingIntervalSec, settings.batterySaver)
+    fun start(settings: AppSettings, continueFrom: Track? = null) {
+        TrackRecorder.configure(settings.recordingIntervalSec, settings.batterySaver, settings.skipStops)
         PlatformLocation.applySettings(
             settings.recordingIntervalSec,
             settings.batterySaver,
             settings.backgroundRecording,
         )
-        TrackRecorder.start(settings.transportProfile, settings.susaninEnabled)
+        TrackRecorder.start(settings.transportProfile, settings.susaninEnabled, continueFrom = continueFrom)
         PlatformLocation.start()
     }
 

@@ -106,3 +106,30 @@ internal fun StopRecordingDialog(onStop: () -> Unit, onDismiss: () -> Unit) {
         dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Продолжить запись", "Keep recording")) } },
     )
 }
+
+/**
+ * A journal track finished recently (within the continue window): offer appending to it
+ * (same GPX file, points continue) instead of a new track.
+ */
+@Composable
+internal fun ContinueOrNewDialog(
+    lastTrackName: String,
+    onContinue: () -> Unit,
+    onNew: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Запись трека", "Record track")) },
+        text = {
+            Text(
+                tr(
+                    "Продолжить трек «$lastTrackName» или начать новый? При продолжении новые точки допишутся в тот же трек.",
+                    "Continue the track \"$lastTrackName\" or start a new one? Continued points are appended to the same track.",
+                )
+            )
+        },
+        confirmButton = { TextButton(onClick = onContinue) { Text(tr("Продолжить", "Continue")) } },
+        dismissButton = { TextButton(onClick = onNew) { Text(tr("Новый трек", "New track")) } },
+    )
+}

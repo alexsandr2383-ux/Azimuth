@@ -125,6 +125,10 @@ data class AppSettings(
     val fuelReserveLiters: Double = 0.0,
     val recordingIntervalSec: Int = 1,
     val batterySaver: Boolean = false,
+    /** Do not add track points while standing still (speed below ~0.8 m/s). */
+    val skipStops: Boolean = false,
+    /** Yellow dashed sunset-azimuth line from the current position (off: it reads as noise). */
+    val showSunsetAzimuth: Boolean = false,
     val backgroundRecording: Boolean = true,
     val autoScan: Boolean = true,
     val weatherRelief: Boolean = true,

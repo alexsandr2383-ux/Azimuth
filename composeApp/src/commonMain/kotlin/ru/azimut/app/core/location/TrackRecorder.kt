@@ -50,17 +50,30 @@ object TrackRecorder {
 
     @Volatile private var intervalMs = 1_000L
     @Volatile private var batterySaver = false
+    @Volatile private var skipStops = false
 
     /** Minimum time between recorded points. Battery saver never records more often than every 5 s. */
-    fun configure(intervalSec: Int, batterySaverEnabled: Boolean) {
+    fun configure(intervalSec: Int, batterySaverEnabled: Boolean, skipStopsEnabled: Boolean = false) {
         intervalMs = intervalSec.coerceIn(1, 3_600) * 1_000L
         batterySaver = batterySaverEnabled
+        skipStops = skipStopsEnabled
     }
 
     private val _saved = MutableSharedFlow<Track>(extraBufferCapacity = 8)
 
     /** Tracks written to the journal, whoever stopped the recording. */
     val saved: SharedFlow<Track> = _saved
+
+    private val _saveFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+
+    /** Emitted when stopping could not write the track file (the autosave still holds the points). */
+    val saveFailed: SharedFlow<Unit> = _saveFailed
+
+    /** Journal id this recording continues; null for a fresh track. Kept through toTrack(). */
+    @Volatile private var continueTrackId: String? = null
+
+    /** Speeds below this (m/s) count as standing still when skip-stops is on. */
+    private val stopSpeedThreshold = 0.8f
 
     /**
      * Autosave runs off the caller's thread (on Android that is the main looper).
@@ -86,17 +99,22 @@ object TrackRecorder {
         private set
 
     @Synchronized
-    fun start(profile: String, susanin: Boolean, name: String? = null) {
+    fun start(profile: String, susanin: Boolean, name: String? = null, continueFrom: Track? = null) {
         // A failed stop keeps the autosave as the only copy of the track — do not wipe it.
         if (!lastSaveFailed) autosaveRequests.trySend(null)
         lastSaveFailed = false
         val now = Clock.System.now().toEpochMilliseconds()
+        // Continuing a journal track: keep its id, name, start time and old points, so
+        // stopAndSave overwrites the same GPX instead of creating a duplicate.
+        continueTrackId = continueFrom?.id
         _state.value = TrackState(
             recording = true,
-            name = name ?: "Трек " + now.toString().takeLast(6),
-            profile = profile,
-            susanin = susanin,
-            startedAt = now,
+            name = continueFrom?.name ?: name ?: "Трек " + now.toString().takeLast(6),
+            profile = continueFrom?.profile ?: profile,
+            susanin = continueFrom?.susanin ?: susanin,
+            startedAt = continueFrom?.startedAt ?: now,
+            points = continueFrom?.points ?: emptyList(),
+            distanceMeters = continueFrom?.distanceMeters ?: 0.0,
             lastFix = _state.value.lastFix,
         )
     }
@@ -118,6 +136,12 @@ object TrackRecorder {
                 _state.value = current.copy(lastFix = fix)
                 return
             }
+        }
+        // "Do not record while stopped": standing fixes are dropped (v1 keeps a straight
+        // bridge between the last moving point and the next one — no GPX trkseg split).
+        if (skipStops && previous != null && (fix.speed ?: 1f) < stopSpeedThreshold) {
+            _state.value = current.copy(lastFix = fix)
+            return
         }
         val point = TrackPoint(
             lat = fix.lat,
@@ -141,7 +165,7 @@ object TrackRecorder {
         )
         _state.value = updated
         if (points.size == 1 || points.size % 5 == 0) {
-            autosaveRequests.trySend(updated.toTrack())
+            autosaveRequests.trySend(updated.toTrack(continueTrackId))
         }
     }
 
@@ -199,10 +223,11 @@ object TrackRecorder {
     fun stopAndSave(): Track? {
         val current = _state.value
         if (!current.recording) return null
-        val track = current.toTrack()
+        val track = current.toTrack(continueTrackId)
         val saved = track.points.isEmpty() || runCatching { trackStore.save(track) }.isSuccess
         if (saved) autosaveRequests.trySend(null)
         if (saved && track.points.isNotEmpty()) _saved.tryEmit(track)
+        if (!saved && track.points.isNotEmpty()) _saveFailed.tryEmit(Unit)
         _state.value = TrackState(lastFix = current.lastFix)
         return track
     }
@@ -216,7 +241,7 @@ object TrackRecorder {
     fun stopAndSaveAsync(onDone: (() -> Unit)? = null) {
         val current = takeForStop() ?: run { onDone?.invoke(); return }
         saveScope.launch {
-            val track = current.toTrack()
+            val track = current.toTrack(continueTrackId)
             var saved = track.points.isEmpty() || runCatching { trackStore.save(track) }.isSuccess
             if (!saved && track.points.isNotEmpty()) {
                 // One retry: autosave writes succeed moments earlier, so the failure
@@ -229,6 +254,8 @@ object TrackRecorder {
                 // Clear only this recording's autosave; a newer one may have started meanwhile.
                 if (_state.value.startedAt == 0L) autosaveRequests.trySend(null)
                 if (track.points.isNotEmpty()) _saved.tryEmit(track)
+            } else if (track.points.isNotEmpty()) {
+                _saveFailed.tryEmit(Unit)
             }
             onDone?.invoke()
         }
@@ -245,14 +272,16 @@ object TrackRecorder {
     @Synchronized
     fun clear() {
         autosaveRequests.trySend(null)
+        continueTrackId = null
         _state.value = TrackState(lastFix = _state.value.lastFix)
     }
 }
 
-private fun TrackState.toTrack(): Track {
+private fun TrackState.toTrack(continueId: String?): Track {
     val now = Clock.System.now().toEpochMilliseconds()
     return Track(
-        id = "track-$startedAt-${profile}",
+        // A continued recording overwrites the original journal file (same id).
+        id = continueId ?: "track-$startedAt-${profile}",
         name = name.ifBlank { "Трек" },
         profile = profile,
         startedAt = if (startedAt > 0) startedAt else now,

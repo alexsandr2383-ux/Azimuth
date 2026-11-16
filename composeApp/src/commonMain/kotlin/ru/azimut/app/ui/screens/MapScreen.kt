@@ -212,10 +212,30 @@ fun MapScreen(
     var showPoiTypes by remember { mutableStateOf(false) }
     var picked by remember { mutableStateOf<GeoPoint?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    val saveFailedMessage = tr(
+        "Не удалось сохранить трек. Точки остались в автосохранении.",
+        "Could not save the track. Points are kept in the autosave file.",
+    )
+    LaunchedEffect(Unit) {
+        TrackRecorder.saveFailed.collect { message = saveFailedMessage }
+    }
     var showExit by remember { mutableStateOf(false) }
     var showGoto by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showStartRecording by remember { mutableStateOf(false) }
+    // Journal track finished recently — ask "continue or new?" before the preset dialog.
+    var continueCandidate by remember { mutableStateOf<Track?>(null) }
+    val trackStore = remember { ru.azimut.app.core.storage.TrackStore() }
+    var recElapsedSec by remember { mutableStateOf(0L) }
+    LaunchedEffect(recorder.recording, recorder.startedAt) {
+        while (recorder.recording) {
+            val startedAt = recorder.startedAt
+            recElapsedSec = if (startedAt > 0) {
+                ((kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - startedAt) / 1000).coerceAtLeast(0)
+            } else 0L
+            delay(1_000)
+        }
+    }
     var showStopRecording by remember { mutableStateOf(false) }
     var gotoText by remember { mutableStateOf("") }
     var gotoTarget by remember { mutableStateOf<GeoPoint?>(null) }
@@ -282,6 +302,27 @@ fun MapScreen(
     val satellites by PlatformLocation.satellites.collectAsState()
     val routeScope = rememberCoroutineScope()
 
+    // REC button and the "Не записано" card share one entry point: a journal track
+    // finished within the continue window gets a continue-or-new question first.
+    fun onRecPressed() {
+        if (recorder.recording) {
+            showStopRecording = true
+            return
+        }
+        routeScope.launch {
+            val summary = withContext(Dispatchers.IO) {
+                trackStore.list()
+                    .filter { it.kind == ru.azimut.app.core.model.KIND_TRACK }
+                    .maxByOrNull { it.startedAt }
+            }
+            val last = summary?.let { s -> withContext(Dispatchers.IO) { trackStore.load(s.id) } }
+            val endedAt = last?.points?.lastOrNull()?.timeMillis ?: 0L
+            val recent = last != null && endedAt > 0 &&
+                kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - endedAt < CONTINUE_WINDOW_MS
+            if (recent) continueCandidate = last else showStartRecording = true
+        }
+    }
+
     // DEM + zone watches: one store and one episode-watcher for the whole screen.
     val demStore = remember { ru.azimut.app.core.dem.DemStore() }
     LaunchedEffect(dataVersion) {
@@ -311,8 +352,10 @@ fun MapScreen(
     val copiedCoordsMessage = tr("Координаты скопированы (DMS и десятичные).", "Coordinates copied (DMS and decimal).")
     val clipboard = LocalClipboardManager.current
     val heading by ru.azimut.app.core.platform.PlatformHeading.heading.collectAsState()
-    DisposableEffect(navTarget.value, settings.headingSmoothing) {
-        if (navTarget.value != null && ru.azimut.app.core.platform.PlatformHeading.available) {
+    DisposableEffect(settings.headingSmoothing) {
+        // Compass runs whenever the map is open: the location arrow needs it even
+        // when just turning in place, not only during navigation.
+        if (ru.azimut.app.core.platform.PlatformHeading.available) {
             ru.azimut.app.core.platform.PlatformHeading.start(settings.headingSmoothing)
         } else {
             ru.azimut.app.core.platform.PlatformHeading.stop()
@@ -447,7 +490,11 @@ fun MapScreen(
     val sunsetCellLat = currentGeo?.lat?.let { kotlin.math.round(it * 100.0) }
     val sunsetCellLon = currentGeo?.lon?.let { kotlin.math.round(it * 100.0) }
     var sunsetAzimuthDeg by remember { mutableStateOf<Double?>(null) }
-    LaunchedEffect(sunsetCellLat, sunsetCellLon, today, demStore) {
+    LaunchedEffect(sunsetCellLat, sunsetCellLon, today, demStore, settings.showSunsetAzimuth) {
+        if (!settings.showSunsetAzimuth) {
+            sunsetAzimuthDeg = null
+            return@LaunchedEffect
+        }
         val loc = currentGeo ?: run {
             sunsetAzimuthDeg = null
             return@LaunchedEffect
@@ -795,6 +842,10 @@ fun MapScreen(
             gotoTarget = gotoTarget,
             gotoKey = gotoKey,
             hillshadeTiles = hillshadeTiles,
+            // Compass for the arrow; GPS course takes over when the compass is absent (or
+            // the device lies flat) and the fix is definitely moving.
+            headingDegrees = heading
+                ?: recorder.lastFix?.bearing?.takeIf { (recorder.lastFix?.speed ?: 0f) > 1.5f },
             areaDownloadKey = areaDownload,
             onAreaDownloadProgress = { downloaded, total, complete, error ->
                 message = when {
@@ -964,11 +1015,14 @@ fun MapScreen(
         } else {
             MaterialTheme.colorScheme.onSurface
         }
-        Surface(
+        Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 10.dp, start = 10.dp)
-                .gestureBarrier(),
+                .padding(top = 10.dp, start = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+        Surface(
+            modifier = Modifier.gestureBarrier(),
             shape = MapButtonShape,
             color = MapPanelColor,
             contentColor = MapPanelContent,
@@ -1013,6 +1067,39 @@ fun MapScreen(
                     )
                 }
             }
+        }
+
+        // Recording status card: idle = "Не записано" (tap starts the REC flow),
+        // recording = live elapsed time and point count.
+        Surface(
+            modifier = Modifier.clickable { if (!recorder.recording) onRecPressed() },
+            shape = MapButtonShape,
+            color = if (recorder.recording) MapRecordRed else MapPanelColor,
+            contentColor = if (recorder.recording) androidx.compose.ui.graphics.Color.White else MapPanelContent,
+            shadowElevation = 4.dp,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (recorder.recording) {
+                    val hh = recElapsedSec / 3600
+                    val mm = (recElapsedSec % 3600) / 60
+                    val ss = recElapsedSec % 60
+                    val stamp = if (hh > 0) "%d:%02d:%02d".format(hh, mm, ss) else "%02d:%02d".format(mm, ss)
+                    Text(
+                        "● $stamp · ${recorder.points.size} " + tr("точ.", "pts"),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                } else {
+                    Text(
+                        tr("⏺ Не записано", "⏺ Not recording"),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
         }
 
         pickTarget?.let { target ->
@@ -1077,9 +1164,7 @@ fun MapScreen(
         ) {
             HoverTooltip(if (recorder.recording) stopRecordingTooltip else startRecordingTooltip) {
                 FilledIconButton(
-                    onClick = {
-                        if (recorder.recording) showStopRecording = true else showStartRecording = true
-                    },
+                    onClick = { onRecPressed() },
                     modifier = Modifier.size(recordSize).shadow(4.dp, MapButtonShape),
                     shape = MapButtonShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
@@ -1561,6 +1646,17 @@ fun MapScreen(
             onSettingsChange = onSettingsChange,
             onStart = { showStartRecording = false; RecordingControl.start(settings) },
             onDismiss = { showStartRecording = false },
+        )
+    }
+    continueCandidate?.let { last ->
+        ContinueOrNewDialog(
+            lastTrackName = last.name,
+            onContinue = {
+                continueCandidate = null
+                RecordingControl.start(settings, continueFrom = last)
+            },
+            onNew = { continueCandidate = null; showStartRecording = true },
+            onDismiss = { continueCandidate = null },
         )
     }
     if (showStopRecording) {

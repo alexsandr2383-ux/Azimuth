@@ -134,8 +134,8 @@ fun App() {
         PlatformLocation.configure(settings.gpsSource, settings.gpsBaud)
     }
 
-    LaunchedEffect(settings.recordingIntervalSec, settings.batterySaver, settings.backgroundRecording) {
-        TrackRecorder.configure(settings.recordingIntervalSec, settings.batterySaver)
+    LaunchedEffect(settings.recordingIntervalSec, settings.batterySaver, settings.backgroundRecording, settings.skipStops) {
+        TrackRecorder.configure(settings.recordingIntervalSec, settings.batterySaver, settings.skipStops)
         PlatformLocation.applySettings(
             settings.recordingIntervalSec,
             settings.batterySaver,

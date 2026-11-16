@@ -190,6 +190,9 @@ internal fun MapControl(
 /** Below this speed the GPS course is noise, so heading-up falls back to the compass. */
 internal const val MIN_COURSE_SPEED_MPS = 1.5f
 
+/** A journal track finished this recently can be continued (points appended). */
+internal const val CONTINUE_WINDOW_MS = 6L * 60 * 60 * 1000
+
 @Composable
 internal fun orientationLabel(mode: String): String = when (mode) {
     "course" -> tr("Ориентация: по ходу движения", "Orientation: course up")
