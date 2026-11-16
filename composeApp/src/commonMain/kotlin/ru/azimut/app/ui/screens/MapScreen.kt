@@ -1124,37 +1124,12 @@ fun MapScreen(
             }
         }
 
-        // Recording status card: idle = "Не записано" (tap starts the REC flow),
-        // recording = live elapsed time and point count.
-        Surface(
-            modifier = Modifier.clickable { if (!recorder.recording) onRecPressed() },
-            shape = MapButtonShape,
-            color = if (recorder.recording) MapRecordRed else MapPanelColor,
-            contentColor = if (recorder.recording) androidx.compose.ui.graphics.Color.White else MapPanelContent,
-            shadowElevation = 4.dp,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                if (recorder.recording) {
-                    val hh = recElapsedSec / 3600
-                    val mm = (recElapsedSec % 3600) / 60
-                    val ss = recElapsedSec % 60
-                    val stamp = if (hh > 0) "%d:%02d:%02d".format(hh, mm, ss) else "%02d:%02d".format(mm, ss)
-                    Text(
-                        "● $stamp · ${recorder.points.size} " + tr("точ.", "pts"),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                } else {
-                    Text(
-                        tr("⏺ Не записано", "⏺ Not recording"),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
-        }
+        RecordingStatusCard(
+            recording = recorder.recording,
+            elapsedSec = recElapsedSec,
+            points = recorder.points.size,
+            onRecPressed = { onRecPressed() },
+        )
         }
 
         pickTarget?.let { target ->

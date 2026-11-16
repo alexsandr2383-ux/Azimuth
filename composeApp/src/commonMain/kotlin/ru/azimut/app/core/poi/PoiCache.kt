@@ -3,6 +3,12 @@ package ru.azimut.app.core.poi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.longOrNull
 import ru.azimut.app.core.model.PoiTypes
 import ru.azimut.app.core.model.Waypoint
 import ru.azimut.app.core.platform.PlatformFiles
@@ -143,22 +149,18 @@ object PoiCache {
 
     /** Parses Overpass JSON `elements` into named, categorised entries. */
     internal fun parseOverpass(body: String): List<Entry> {
+        val root = runCatching { json.parseToJsonElement(body) }.getOrNull() ?: return emptyList()
+        val elements = root.jsonObject["elements"]?.jsonArray ?: return emptyList()
         val result = mutableListOf<Entry>()
-        val elementRegex = Regex("\\{[^{}]*\"type\"\\s*:\\s*\"node\"[^{}]*\\}")
-        val latRe = Regex("\"lat\"\\s*:\\s*(-?[0-9.]+)")
-        val lonRe = Regex("\"lon\"\\s*:\\s*(-?[0-9.]+)")
-        val idRe = Regex("\"id\"\\s*:\\s*([0-9]+)")
-        val nameRe = Regex("\"name\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"")
-        val tagRe = Regex("\"([a-z_]+)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"")
-        for (m in elementRegex.findAll(body)) {
-            val block = m.value
-            val lat = latRe.find(block)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-            val lon = lonRe.find(block)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-            val id = idRe.find(block)?.groupValues?.get(1) ?: continue
-            val name = nameRe.find(block)?.groupValues?.get(1)?.replace("\\\"", "\"") ?: continue
-            if (name.isBlank()) continue
-            val tags = tagRe.findAll(block).associate { it.groupValues[1] to it.groupValues[2] }
-            val category = categorise(tags) ?: continue
+        for (el in elements) {
+            val o = el.jsonObject
+            if (o["type"]?.jsonPrimitive?.contentOrNull != "node") continue
+            val lat = o["lat"]?.jsonPrimitive?.doubleOrNull ?: continue
+            val lon = o["lon"]?.jsonPrimitive?.doubleOrNull ?: continue
+            val id = o["id"]?.jsonPrimitive?.longOrNull ?: continue
+            val tags = o["tags"]?.jsonObject ?: continue
+            val name = tags["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: continue
+            val category = categorise(tags.mapValues { it.value.jsonPrimitive.contentOrNull ?: "" }) ?: continue
             result.add(Entry("poi-osm-$id", name, lat, lon, category))
         }
         return result.distinctBy { it.id }

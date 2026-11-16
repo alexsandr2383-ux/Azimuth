@@ -243,3 +243,45 @@ internal fun shortDateTime(millis: Long): String {
     fun two(v: Int) = v.toString().padStart(2, '0')
     return "${two(dt.dayOfMonth)}.${two(dt.monthNumber)} ${two(dt.hour)}:${two(dt.minute)}"
 }
+
+/**
+ * Recording status card under the top plaque: idle = «Не записано» (tap starts
+ * the REC flow), recording = live elapsed time and point count.
+ */
+@Composable
+internal fun RecordingStatusCard(
+    recording: Boolean,
+    elapsedSec: Long,
+    points: Int,
+    onRecPressed: () -> Unit,
+) {
+    androidx.compose.material3.Surface(
+        modifier = Modifier.clickable { if (!recording) onRecPressed() },
+        shape = MapButtonShape,
+        color = if (recording) MapRecordRed else MapPanelColor,
+        contentColor = if (recording) androidx.compose.ui.graphics.Color.White else MapPanelContent,
+        shadowElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (recording) {
+                val hh = elapsedSec / 3600
+                val mm = (elapsedSec % 3600) / 60
+                val ss = elapsedSec % 60
+                val stamp = if (hh > 0) "%d:%02d:%02d".format(hh, mm, ss) else "%02d:%02d".format(mm, ss)
+                Text(
+                    "● $stamp · $points " + tr("точ.", "pts"),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            } else {
+                Text(
+                    tr("⏺ Не записано", "⏺ Not recording"),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
+    }
+}
