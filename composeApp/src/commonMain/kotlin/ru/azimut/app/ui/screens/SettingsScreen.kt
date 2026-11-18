@@ -230,6 +230,9 @@ fun SettingsScreen(
     val pickSyncFolder = rememberFolderPicker { location ->
         onSettingsChange(settings.copy(syncFolderPath = location))
     }
+    val pickExportFolder = rememberFolderPicker { location ->
+        onSettingsChange(settings.copy(autoExportFolder = location))
+    }
 
     val mapImportFailedMessage = tr("Не удалось скопировать файл карты.", "Could not copy the map file.")
     val mapVectorMessage = tr(
@@ -469,6 +472,31 @@ fun SettingsScreen(
                         "Standing-still fixes are not added to the track",
                     ),
                 )
+                SwitchRow(
+                    tr("Автоэкспорт трека", "Auto-export track"),
+                    settings.autoExport,
+                    { onSettingsChange(settings.copy(autoExport = it)) },
+                    tr(
+                        "GPX-копия записанного трека при сохранении",
+                        "GPX copy of each recorded track once saved",
+                    ),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        tr("Папка экспорта: ", "Export folder: ") +
+                            (settings.autoExportFolder.ifBlank {
+                                tr("NavData/export (папка приложения)", "NavData/export (app folder)")
+                            }),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (settings.autoExportFolder.isNotBlank()) {
+                        TextButton(onClick = {
+                            onSettingsChange(settings.copy(autoExportFolder = ""))
+                        }) { Text(tr("Сброс", "Reset")) }
+                    }
+                    TextButton(onClick = pickExportFolder) { Text(tr("Выбрать", "Choose")) }
+                }
                 SwitchRow(
                     tr("Режим Сусанина", "Explorer Mode"),
                     settings.susaninEnabled,

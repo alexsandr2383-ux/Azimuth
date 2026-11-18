@@ -46,6 +46,7 @@ import ru.azimut.app.core.platform.AppCommands
 import ru.azimut.app.core.platform.PlatformFiles
 import ru.azimut.app.core.platform.PlatformLocation
 import ru.azimut.app.core.platform.applySystemBars
+import ru.azimut.app.core.export.AutoExport
 import ru.azimut.app.core.storage.AutoScan
 import ru.azimut.app.core.storage.PointsStore
 import ru.azimut.app.core.storage.SettingsStore
@@ -158,6 +159,11 @@ fun App() {
             if (track.susanin) {
                 settings = settings.copy(susaninCount = settings.susaninCount + 1)
                 settingsStore.save(settings)
+            }
+            // AlpineQuest-style auto-export: best-effort GPX copy, never blocks the save flow.
+            if (settings.autoExport) {
+                val folder = settings.autoExportFolder
+                scope.launch(Dispatchers.Default) { AutoExport.saveTrackCopy(track, folder) }
             }
         }
     }

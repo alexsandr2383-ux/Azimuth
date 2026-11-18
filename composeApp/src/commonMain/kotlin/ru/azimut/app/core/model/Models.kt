@@ -140,6 +140,10 @@ data class AppSettings(
     val poiAutoLoad: Boolean = true,
     val backgroundRecording: Boolean = true,
     val autoScan: Boolean = true,
+    /** Save a GPX copy of every recorded track into the export folder (AlpineQuest-style). */
+    val autoExport: Boolean = false,
+    /** Export target: blank = NavData/export/, otherwise absolute path (desktop) or SAF tree URI (Android). */
+    val autoExportFolder: String = "",
     val weatherRelief: Boolean = true,
     val voiceNotes: Boolean = true,
     val photoQuality: String = "high",
