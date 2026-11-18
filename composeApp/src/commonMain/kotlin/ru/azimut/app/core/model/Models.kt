@@ -97,7 +97,9 @@ fun Track.toSummary(): TrackSummary = TrackSummary(
     durationSeconds = if (kind == KIND_ROUTE) {
         plannedTimeSeconds?.toLong()
     } else {
-        points.lastOrNull()?.timeMillis?.takeIf { it > startedAt }?.let { (it - startedAt) / 1000 }
+        // 0 for GPX without point timestamps: null here would re-trigger the
+        // index duration-upgrade (and a full re-parse) on every app start.
+        points.lastOrNull()?.timeMillis?.takeIf { it > startedAt }?.let { (it - startedAt) / 1000 } ?: 0L
     },
 )
 

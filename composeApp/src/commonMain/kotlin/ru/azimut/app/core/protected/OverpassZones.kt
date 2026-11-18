@@ -10,6 +10,8 @@ import ru.azimut.app.core.platform.PlatformHttp
  */
 object OverpassZones {
     private const val ENDPOINT = "https://overpass-api.de/api/interpreter"
+    /** Public mirror: tried when the primary endpoint fails or returns a non-200. */
+    private const val ENDPOINT_FALLBACK = "https://overpass.kumi.systems/api/interpreter"
 
     enum class Outcome { OK, EMPTY, NO_NET, SERVER_BUSY, FAILED }
 
@@ -31,12 +33,13 @@ object OverpassZones {
             "way[\"boundary\"=\"national_park\"]($latMin,$lonMin,$latMax,$lonMax);" +
             "way[\"leisure\"=\"nature_reserve\"]($latMin,$lonMin,$latMax,$lonMax);" +
             ");out geom;"
-        val resp = PlatformHttp.request(
-            "POST",
-            ENDPOINT,
-            mapOf("Content-Type" to "application/x-www-form-urlencoded"),
-            "data=${formEncode(query)}".toByteArray(Charsets.UTF_8),
-        ) ?: return Result(Outcome.NO_NET, 0)
+        val headers = mapOf("Content-Type" to "application/x-www-form-urlencoded")
+        val body = "data=${formEncode(query)}".toByteArray(Charsets.UTF_8)
+        var resp = PlatformHttp.request("POST", ENDPOINT, headers, body)
+        if (resp == null || resp.status !in 200..299) {
+            resp = PlatformHttp.request("POST", ENDPOINT_FALLBACK, headers, body) ?: resp
+        }
+        if (resp == null) return Result(Outcome.NO_NET, 0)
         if (resp.status == 429 || resp.status == 504) return Result(Outcome.SERVER_BUSY, 0)
         if (resp.status !in 200..299) return Result(Outcome.FAILED, 0)
         val geoJson = resp.body.toString(Charsets.UTF_8)

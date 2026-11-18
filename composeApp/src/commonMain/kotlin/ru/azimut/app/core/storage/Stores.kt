@@ -8,6 +8,7 @@ import ru.azimut.app.core.gpx.Gpx
 import ru.azimut.app.core.model.AppSettings
 import ru.azimut.app.core.model.Track
 import ru.azimut.app.core.model.KIND_ROUTE
+import ru.azimut.app.core.model.KIND_TRACK
 import ru.azimut.app.core.model.TrackSummary
 import ru.azimut.app.core.model.Waypoint
 import ru.azimut.app.core.model.toSummary
@@ -94,17 +95,54 @@ class TrackStore {
         return stored.map { s -> byId[s.id]?.let { s.copy(durationSeconds = it.durationSeconds ?: s.durationSeconds) } ?: s }
     }
 
+    /**
+     * Splash-safe listing: the stored index, or file-name placeholders when it is
+     * missing/broken — parsing a multi-megabyte GPX on ART takes a minute, so the
+     * real rebuild happens in the background via [rebuildIfStale].
+     */
+    fun listQuick(): List<TrackSummary> {
+        loadOrPreserve<List<TrackSummary>>("tracks/index.json")?.let { return it }
+        return PlatformFiles.listFiles("tracks")
+            .filter { it.endsWith(".gpx", ignoreCase = true) && it != "autosave.gpx" }
+            .map {
+                val id = it.substringBeforeLast('.')
+                TrackSummary(
+                    id = id,
+                    name = id,
+                    profile = "enduro",
+                    startedAt = PlatformFiles.lastModified("tracks/$it"),
+                    distanceMeters = 0.0,
+                    pointCount = 0,
+                    kind = KIND_TRACK,
+                )
+            }
+            .sortedByDescending { it.startedAt }
+    }
+
+    /** Returns the freshly rebuilt index when it was stale, or null when nothing changed. */
+    fun rebuildIfStale(): List<TrackSummary>? {
+        val stored = loadOrPreserve<List<TrackSummary>>("tracks/index.json")
+        val stale = stored == null ||
+            stored.any { it.durationSeconds == null && it.kind != KIND_ROUTE }
+        if (!stale) return null
+        return rebuildIndex().ifEmpty { stored }
+    }
+
     /** Recreates the journal index from the GPX files in tracks/ when it is missing or damaged. */
     private fun rebuildIndex(): List<TrackSummary> {
+        val t0 = System.currentTimeMillis()
         val summaries = PlatformFiles.listFiles("tracks")
             .filter { it.endsWith(".gpx", ignoreCase = true) && it != "autosave.gpx" }
             .mapNotNull { fileName ->
+                val fileStart = System.currentTimeMillis()
                 val text = PlatformFiles.readText("tracks/$fileName") ?: return@mapNotNull null
                 val track = runCatching { Gpx.parseImport(text).tracks.firstOrNull() }.getOrNull()
                     ?: return@mapNotNull null
+                println("AZ-REBUILD $fileName ${System.currentTimeMillis() - fileStart} ms")
                 track.copy(id = fileName.substringBeforeLast('.')).toSummary()
             }
             .sortedByDescending { it.startedAt }
+        println("AZ-REBUILD total ${System.currentTimeMillis() - t0} ms, ${summaries.size} tracks")
         if (summaries.isNotEmpty()) {
             runCatching { PlatformFiles.writeText("tracks/index.json", json.encodeToString(summaries)) }
         }

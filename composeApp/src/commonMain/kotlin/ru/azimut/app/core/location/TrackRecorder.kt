@@ -70,6 +70,11 @@ object TrackRecorder {
     /** Emitted when stopping could not write the track file (the autosave still holds the points). */
     val saveFailed: SharedFlow<Unit> = _saveFailed
 
+    private val _emptyStop = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+
+    /** Emitted when a stop produced a track with no points — nothing is saved. */
+    val emptyStop: SharedFlow<Unit> = _emptyStop
+
     /** Journal id this recording continues; null for a fresh track. Kept through toTrack(). */
     @Volatile private var continueTrackId: String? = null
 
@@ -229,6 +234,7 @@ object TrackRecorder {
         if (saved) autosaveRequests.trySend(null)
         if (saved && track.points.isNotEmpty()) _saved.tryEmit(track)
         if (!saved && track.points.isNotEmpty()) _saveFailed.tryEmit(Unit)
+        if (track.points.isEmpty()) _emptyStop.tryEmit(Unit)
         _state.value = TrackState(lastFix = current.lastFix)
         return track
     }
@@ -258,6 +264,7 @@ object TrackRecorder {
             } else if (track.points.isNotEmpty()) {
                 _saveFailed.tryEmit(Unit)
             }
+            if (track.points.isEmpty()) _emptyStop.tryEmit(Unit)
             onDone?.invoke()
         }
     }
@@ -291,7 +298,9 @@ private fun TrackState.toTrack(continueId: String?): Track {
         } else {
             "${distanceMeters.toInt()} м"
         }
-        "Трек ${dt.dayOfMonth.toString().padStart(2, '0')}.${dt.monthNumber.toString().padStart(2, '0')} · $lenText"
+        // Minutes keep two same-day recordings apart (duplicate-name debt from v0.4).
+        "Трек ${dt.dayOfMonth.toString().padStart(2, '0')}.${dt.monthNumber.toString().padStart(2, '0')} " +
+            "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')} · $lenText"
     } else {
         name
     }

@@ -112,21 +112,46 @@ fun App() {
     var startupScanMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
+        val t0 = System.currentTimeMillis()
+        fun mark(label: String) = println("AZ-SPLASH $label ${System.currentTimeMillis() - t0} ms")
         PlatformFiles.ensureDirs()
+        mark("ensureDirs")
         UserMaps.refresh()
+        mark("userMaps")
         ru.azimut.app.core.map.UserXyz.refresh()
+        mark("userXyz")
         // points.json can hold thousands of imported POIs; keep decoding off the UI thread.
         settings = withContext(Dispatchers.Default) { settingsStore.load() }
+        mark("settings")
         points = withContext(Dispatchers.Default) { pointsStore.load() }
-        summaries = withContext(Dispatchers.Default) { trackStore.list() }
+        mark("points ${points.size}")
+        // Never parse big GPX on the splash: listQuick uses the stored index or placeholders,
+        // the (potentially minute-long) rebuild runs in the background after the map is up.
+        summaries = withContext(Dispatchers.Default) { trackStore.listQuick() }
+        mark("tracks ${summaries.size}")
         trash = withContext(Dispatchers.Default) { runCatching { trackStore.purgeExpired() }; trackStore.listTrash() }
+        mark("trash")
         // The autosave belongs to the live recording if the service is still running.
         pendingRecovery = if (TrackRecorder.state.value.recording) {
             null
         } else {
             withContext(Dispatchers.Default) { trackStore.loadAutosave() }
         }
+        mark("autosave")
         ready = true
+    }
+
+    // Background journal index rebuild: parsing a multi-MB GPX takes ~a minute on ART,
+    // so it must never sit between the app icon and the first map frame.
+    LaunchedEffect(ready) {
+        if (!ready) return@LaunchedEffect
+        launch(Dispatchers.Default) {
+            val full = runCatching { trackStore.rebuildIfStale() }.getOrNull() ?: return@launch
+            if (full != summaries && full.isNotEmpty()) {
+                summaries = full
+                dataVersion++
+            }
+        }
     }
 
     if (!ready) {

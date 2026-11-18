@@ -428,7 +428,7 @@ fun MapScreen(
     val offerZonesFail = tr("Зоны OSM загрузить не удалось.", "Could not fetch OSM zones.")
     val offerDemDone = tr("DEM загружен.", "DEM loaded.")
     val offerDemNoNet = tr("DEM не скачан: нет сети.", "DEM not fetched: no network.")
-    val offerDemFail = tr("DEM не скачан.", "DEM not fetched.")
+    val offerDemFail = tr("DEM не скачан. Проверьте сеть и повторите позже.", "DEM not fetched. Check the network and retry later.")
     dataOfferNeeds?.let { needs ->
         val needsText = needs.joinToString(", ") {
             if (langEn) it.titleEn else it.titleRu
@@ -1372,6 +1372,35 @@ fun MapScreen(
                 if (currentGeo == null) message = noFixMessage else picked = currentGeo
             }
 
+
+            MapControl(Icons.Filled.Home, tr("База", "Base"), settings.basePoint != null, size = controlSize) {
+                val fix = recorder.lastFix
+                if (fix == null) {
+                    message = noFixMessage
+                } else {
+                    onSettingsChange(settings.copy(baseLat = fix.lat, baseLon = fix.lon))
+                    message = baseSavedMessage
+                }
+            }
+
+            MapControl(
+                Icons.Filled.Warning,
+                tr("Режим Сусанина", "Explorer Mode"),
+                settings.susaninEnabled,
+                size = controlSize,
+            ) {
+                val next = !settings.susaninEnabled
+                onSettingsChange(settings.copy(susaninEnabled = next))
+                TrackRecorder.setSusanin(next)
+            }
+
+            if (settings.susaninEnabled) {
+                MapControl(Icons.Filled.ExitToApp, tr("Выйти отсюда", "Get me out"), size = controlSize) {
+                    showExit = true
+                }
+            }
+
+            }
             if (showPoiTypes) {
                 AlertDialog(
                     onDismissRequest = { showPoiTypes = false },
@@ -1435,34 +1464,6 @@ fun MapScreen(
                 )
             }
 
-            MapControl(Icons.Filled.Home, tr("База", "Base"), settings.basePoint != null, size = controlSize) {
-                val fix = recorder.lastFix
-                if (fix == null) {
-                    message = noFixMessage
-                } else {
-                    onSettingsChange(settings.copy(baseLat = fix.lat, baseLon = fix.lon))
-                    message = baseSavedMessage
-                }
-            }
-
-            MapControl(
-                Icons.Filled.Warning,
-                tr("Режим Сусанина", "Explorer Mode"),
-                settings.susaninEnabled,
-                size = controlSize,
-            ) {
-                val next = !settings.susaninEnabled
-                onSettingsChange(settings.copy(susaninEnabled = next))
-                TrackRecorder.setSusanin(next)
-            }
-
-            if (settings.susaninEnabled) {
-                MapControl(Icons.Filled.ExitToApp, tr("Выйти отсюда", "Get me out"), size = controlSize) {
-                    showExit = true
-                }
-            }
-
-            }
 
             MapControl(
                 Icons.Filled.Explore,
