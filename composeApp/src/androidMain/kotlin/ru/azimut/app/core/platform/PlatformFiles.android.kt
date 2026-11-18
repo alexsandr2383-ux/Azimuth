@@ -79,6 +79,67 @@ actual object PlatformFiles {
 
     actual fun exists(relativePath: String): Boolean = File(root, relativePath).exists()
 
+    // --- Phone-wide scan (requires «All files access» on Android 11+) ---
+
+    private val SCAN_EXTS = setOf("gpx", "kml", "kmz", "tcx", "geojson", "json", "mbtiles", "sqlitedb", "gpkg", "hgt", "tif", "tiff")
+    private val SKIP_DIRS = setOf("Android", "DCIM", ".android", "data", "obb", "lost+found")
+
+    actual fun scanExternalFiles(): List<String> {
+        if (!hasAllFilesAccess()) return emptyList()
+        val base = File("/sdcard")
+        if (!base.isDirectory) return emptyList()
+        val navData = root.canonicalPath
+        val found = mutableListOf<String>()
+        fun walk(dir: File, depth: Int) {
+            if (depth > 8 || found.size >= 500) return
+            val list = runCatching { dir.listFiles() }.getOrNull() ?: return
+            for (f in list) {
+                if (found.size >= 500) return
+                if (f.isDirectory) {
+                    if (f.name in SKIP_DIRS) continue
+                    val canonical = runCatching { f.canonicalPath }.getOrNull() ?: continue
+                    if (canonical == navData || navData.startsWith(canonical + "/")) continue
+                    walk(f, depth + 1)
+                } else {
+                    val ext = f.extension.lowercase()
+                    if (ext in SCAN_EXTS && f.length() > 0L) found.add(f.absolutePath)
+                }
+            }
+        }
+        walk(base, 0)
+        return found
+    }
+
+    actual fun externalSize(absolutePath: String): Long = runCatching {
+        File(absolutePath).length()
+    }.getOrDefault(-1L)
+
+    actual fun readExternalFile(absolutePath: String): ByteArray? = runCatching {
+        val f = File(absolutePath)
+        if (f.isFile && f.canRead()) f.readBytes() else null
+    }.getOrNull()
+
+    actual fun copyExternalToNavData(absolutePath: String, relativePath: String): Boolean = runCatching {
+        val target = File(root, relativePath)
+        target.parentFile?.mkdirs()
+        File(absolutePath).copyTo(target, overwrite = true)
+        true
+    }.getOrDefault(false)
+
+    actual fun hasAllFilesAccess(): Boolean = runCatching {
+        android.os.Environment.isExternalStorageManager()
+    }.getOrDefault(false)
+
+    actual fun requestAllFilesAccess() {
+        runCatching {
+            val intent = android.content.Intent(
+                android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                android.net.Uri.parse("package:" + AndroidApp.context.packageName),
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            AndroidApp.context.startActivity(intent)
+        }
+    }
+
     /** Writes via a temp file + rename so a crash mid-write never leaves a truncated file. */
     private fun writeAtomically(file: File, bytes: ByteArray) {
         file.parentFile?.mkdirs()

@@ -22,6 +22,18 @@ expect object PlatformFiles {
     fun lastModified(relativePath: String): Long
     fun delete(relativePath: String): Boolean
     fun exists(relativePath: String): Boolean
+
+    /** Phone-wide scan (Android «All files access»): matching file paths, or empty when unavailable. */
+    fun scanExternalFiles(): List<String>
+    /** Size in bytes of an external (absolute-path) file; -1 when unavailable. */
+    fun externalSize(absolutePath: String): Long
+    fun readExternalFile(absolutePath: String): ByteArray?
+    /** Stages an external file into NavData (e.g. import/) so the normal import pipeline can take it. */
+    fun copyExternalToNavData(absolutePath: String, relativePath: String): Boolean
+    /** Android: «All files access» granted (desktop: always true). */
+    fun hasAllFilesAccess(): Boolean
+    /** Opens the Android «All files access» system page (desktop: no-op). */
+    fun requestAllFilesAccess()
 }
 
 expect object PlatformInfo {

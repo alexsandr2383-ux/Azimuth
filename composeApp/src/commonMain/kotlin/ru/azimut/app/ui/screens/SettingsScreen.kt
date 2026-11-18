@@ -356,6 +356,20 @@ fun SettingsScreen(
                     tr("Искать GPX и карты в доверенных папках", "Scan trusted folders for GPX and maps"),
                 )
                 SwitchRow(
+                    tr("Искать по всему телефону", "Scan the whole phone"),
+                    settings.phoneScan,
+                    { onSettingsChange(settings.copy(phoneScan = it)) },
+                    tr(
+                        "GPX, карты и DEM в любых папках телефона",
+                        "GPX, maps and DEM in any folder of the device",
+                    ),
+                )
+                if (settings.phoneScan && !PlatformFiles.hasAllFilesAccess()) {
+                    TextButton(onClick = { PlatformFiles.requestAllFilesAccess() }) {
+                        Text(tr("Выдать доступ ко всем файлам", "Grant all-files access"))
+                    }
+                }
+                SwitchRow(
                     tr("Отрисовка рельефа (хиллшейд)", "Hillshade overlay"),
                     settings.hillshade,
                     { onSettingsChange(settings.copy(hillshade = it)) },

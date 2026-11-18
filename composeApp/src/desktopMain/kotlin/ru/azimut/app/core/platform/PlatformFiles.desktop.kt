@@ -79,6 +79,53 @@ actual object PlatformFiles {
 
     actual fun exists(relativePath: String): Boolean = File(root, relativePath).exists()
 
+    // --- Desktop scan: Documents + Downloads under the user home (no extra permission needed). ---
+
+    private val SCAN_EXTS = setOf("gpx", "kml", "kmz", "tcx", "geojson", "json", "mbtiles", "sqlitedb", "gpkg", "hgt", "tif", "tiff")
+    private val SKIP_DIRS = setOf("Android", ".android", "node_modules", ".git", ".gradle", "build")
+
+    actual fun scanExternalFiles(): List<String> {
+        val home = File(System.getProperty("user.home") ?: return emptyList())
+        val found = mutableListOf<String>()
+        fun walk(dir: File, depth: Int) {
+            if (depth > 6 || found.size >= 500) return
+            val list = runCatching { dir.listFiles() }.getOrNull() ?: return
+            for (f in list) {
+                if (found.size >= 500) return
+                if (f.isDirectory) {
+                    if (f.name in SKIP_DIRS || f.name.startsWith(".")) continue
+                    walk(f, depth + 1)
+                } else {
+                    val ext = f.extension.lowercase()
+                    if (ext in SCAN_EXTS && f.length() > 0L) found.add(f.absolutePath)
+                }
+            }
+        }
+        walk(File(home, "Documents"), 0)
+        walk(File(home, "Downloads"), 0)
+        return found
+    }
+
+    actual fun externalSize(absolutePath: String): Long = runCatching {
+        File(absolutePath).length()
+    }.getOrDefault(-1L)
+
+    actual fun readExternalFile(absolutePath: String): ByteArray? = runCatching {
+        val f = File(absolutePath)
+        if (f.isFile && f.canRead()) f.readBytes() else null
+    }.getOrNull()
+
+    actual fun copyExternalToNavData(absolutePath: String, relativePath: String): Boolean = runCatching {
+        val target = File(root, relativePath)
+        target.parentFile?.mkdirs()
+        File(absolutePath).copyTo(target, overwrite = true)
+        true
+    }.getOrDefault(false)
+
+    actual fun hasAllFilesAccess(): Boolean = true
+
+    actual fun requestAllFilesAccess() = Unit
+
     /** Writes via a temp file + rename so a crash mid-write never leaves a truncated file. */
     private fun writeAtomically(file: File, bytes: ByteArray) {
         file.parentFile?.mkdirs()

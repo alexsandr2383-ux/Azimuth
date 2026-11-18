@@ -48,6 +48,7 @@ import ru.azimut.app.core.platform.PlatformLocation
 import ru.azimut.app.core.platform.applySystemBars
 import ru.azimut.app.core.export.AutoExport
 import ru.azimut.app.core.storage.AutoScan
+import ru.azimut.app.core.storage.PhoneScan
 import ru.azimut.app.core.storage.PointsStore
 import ru.azimut.app.core.storage.SettingsStore
 import ru.azimut.app.core.storage.TrackStore
@@ -73,6 +74,9 @@ enum class Screen {
     Help,
     About,
 }
+
+/** One file pending import: from NavData/import/ (navKey) or anywhere on the phone (absPath). */
+private data class ScanItem(val name: String, val navKey: String?, val absPath: String?, val fingerprint: String)
 
 @Composable
 fun App() {
@@ -299,23 +303,45 @@ fun App() {
         }
     }
 
-    // Files dropped into NavData/import/ are picked up once, without blocking the first frame.
-    LaunchedEffect(Unit) {
+    // Files dropped into NavData/import/ and (optionally) anywhere on the phone are
+    // picked up once, without blocking the first frame. Keyed by the scan settings:
+    // the first pass runs on defaults before settings.json finishes loading.
+    LaunchedEffect(settings.autoScan, settings.phoneScan) {
         if (!settings.autoScan) return@LaunchedEffect
-        val pending = withContext(Dispatchers.Default) { AutoScan.pending() }
-        if (pending.isEmpty()) return@LaunchedEffect
+        suspend fun readText(item: ScanItem): String? = withContext(Dispatchers.Default) {
+            if (item.navKey != null) AutoScan.readText(item.navKey)
+            else PlatformFiles.readExternalFile(item.absPath!!)?.decodeToString()
+        }
+        suspend fun readBytes(item: ScanItem): ByteArray? = withContext(Dispatchers.Default) {
+            if (item.navKey != null) AutoScan.readBytes(item.navKey)
+            else PlatformFiles.readExternalFile(item.absPath!!)
+        }
+        // Maps/DEM importers work on NavData paths: stage a phone file there first.
+        suspend fun stage(item: ScanItem): Boolean = withContext(Dispatchers.Default) {
+            item.navKey != null || PlatformFiles.copyExternalToNavData(item.absPath!!, "import/${item.name}")
+        }
+        val items = withContext(Dispatchers.Default) {
+            buildList {
+                AutoScan.pending().forEach { add(ScanItem(it.name, it.name, null, it.fingerprint)) }
+                if (settings.phoneScan && PlatformFiles.hasAllFilesAccess()) {
+                    PhoneScan.pending().forEach { add(ScanItem(it.name, null, it.path, it.fingerprint)) }
+                }
+            }
+        }
+        val noAccess = settings.phoneScan && !PlatformFiles.hasAllFilesAccess()
+        if (items.isEmpty() && !noAccess) return@LaunchedEffect
         var tracks = 0
         var waypoints = 0
         var maps = 0
         var zones = 0
-        val done = mutableListOf<AutoScan.Pending>()
+        val done = mutableListOf<ScanItem>()
         val failed = mutableListOf<String>()
-        for (file in pending) {
+        for (file in items) {
             val lower = file.name.lowercase()
             when {
                 lower.endsWith(".gpx") || lower.endsWith(".kml") || lower.endsWith(".tcx") ||
                     lower.endsWith(".geojson") || lower.endsWith(".json") -> {
-                    val content = withContext(Dispatchers.Default) { AutoScan.readText(file.name) }
+                    val content = readText(file)
                     if (content == null) {
                         failed += file.name
                         continue
@@ -362,7 +388,7 @@ fun App() {
                     }
                 }
                 lower.endsWith(".kmz") -> {
-                    val bytes = withContext(Dispatchers.Default) { AutoScan.readBytes(file.name) }
+                    val bytes = readBytes(file)
                     val kml = bytes?.let { ru.azimut.app.core.import.ZipKml.extract(it) }
                     val parsed = kml?.let {
                         ru.azimut.app.core.import.TrackImport.parse(
@@ -391,7 +417,9 @@ fun App() {
                     }
                 }
                 lower.endsWith(".mbtiles") -> {
+                    if (!stage(file)) { failed += file.name; continue }
                     val imported = withContext(Dispatchers.Default) { AutoScan.importMap(file.name) }
+                    if (file.navKey == null) PlatformFiles.delete("import/${file.name}")
                     if (imported) {
                         maps++
                         done += file
@@ -400,7 +428,9 @@ fun App() {
                     }
                 }
                 lower.endsWith(".sqlitedb") || lower.endsWith(".gpkg") -> {
+                    if (!stage(file)) { failed += file.name; continue }
                     val converted = withContext(Dispatchers.Default) { AutoScan.importTileDb(file.name) }
+                    if (file.navKey == null) PlatformFiles.delete("import/${file.name}")
                     if (converted) {
                         maps++
                         done += file
@@ -409,6 +439,7 @@ fun App() {
                     }
                 }
                 lower.endsWith(".hgt") || lower.endsWith(".tif") || lower.endsWith(".tiff") -> {
+                    if (!stage(file)) { failed += file.name; continue }
                     val result = withContext(Dispatchers.Default) {
                         ru.azimut.app.core.dem.DemImport.moveImported(file.name)
                     }
@@ -423,7 +454,10 @@ fun App() {
                 else -> failed += file.name
             }
         }
-        withContext(Dispatchers.Default) { AutoScan.mark(done) }
+        withContext(Dispatchers.Default) {
+            AutoScan.mark(done.mapNotNull { s -> s.navKey?.let { AutoScan.Pending(it, s.fingerprint) } })
+            PhoneScan.mark(done.mapNotNull { s -> s.absPath?.let { PhoneScan.Found(s.name, it, s.fingerprint) } })
+        }
         if (maps > 0) UserMaps.refresh()
         if (done.isNotEmpty()) dataVersion++
         val en = settings.language == "en"
@@ -436,12 +470,17 @@ fun App() {
         } else {
             ""
         }
-        val problems = if (failed.isNotEmpty()) {
-            (if (en) "Could not import: " else "Не удалось импортировать: ") +
-                failed.joinToString(", ")
-        } else {
-            ""
-        }
+        val problems = buildList {
+            if (noAccess) {
+                add(
+                    if (en) "No «All files access» — enable it in Android settings to scan the whole phone."
+                    else "Нет доступа ко всем файлам — выдайте его в настройках Android для поиска по телефону."
+                )
+            }
+            if (failed.isNotEmpty()) {
+                add((if (en) "Could not import: " else "Не удалось импортировать: ") + failed.joinToString(", "))
+            }
+        }.joinToString("\n")
         val text = listOf(summary, problems)
             .filter { it.isNotBlank() }
             .joinToString("\n")

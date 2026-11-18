@@ -142,6 +142,8 @@ data class AppSettings(
     val poiAutoLoad: Boolean = true,
     val backgroundRecording: Boolean = true,
     val autoScan: Boolean = true,
+    /** Scan the whole phone (Android «All files access») for maps/tracks/DEM, not just NavData/import/. */
+    val phoneScan: Boolean = false,
     /** Save a GPX copy of every recorded track into the export folder (AlpineQuest-style). */
     val autoExport: Boolean = false,
     /** Export target: blank = NavData/export/, otherwise absolute path (desktop) or SAF tree URI (Android). */
