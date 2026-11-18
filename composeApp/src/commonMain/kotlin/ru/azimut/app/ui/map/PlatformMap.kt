@@ -29,6 +29,9 @@ expect fun PlatformMap(
     overlayOpacity: Float = 0.6f,
     /** Cache-only mode: never fetch display tiles from the network, show cached ones only. */
     cacheOnly: Boolean = false,
+    /** Track opened from the journal: drawn grade-colored (like the elevation chart) when grades exist. */
+    shownTrackPoints: List<GeoPoint> = emptyList(),
+    shownTrackGrades: List<Float>? = null,
     showPois: Boolean = true,
     /** Map rotation in degrees from true north (0 = north up). */
     mapBearing: Float = 0f,

@@ -79,6 +79,8 @@ import ru.azimut.app.core.model.GeoPoint
 import ru.azimut.app.core.model.TrackPoint
 import ru.azimut.app.core.model.Waypoint
 import ru.azimut.app.core.routing.RouteSection
+import ru.azimut.app.ui.components.GRADE_COLORS
+import ru.azimut.app.ui.components.gradeBucketOf
 import ru.azimut.app.core.routing.RouteSectionKind
 import ru.azimut.app.core.platform.PlatformFiles
 import ru.azimut.app.ui.components.HoverTooltip
@@ -120,6 +122,8 @@ actual fun PlatformMap(
     overlayLayer: String,
     overlayOpacity: Float,
     cacheOnly: Boolean,
+    shownTrackPoints: List<GeoPoint>,
+    shownTrackGrades: List<Float>?,
     showPois: Boolean,
     mapBearing: Float,
     orientationResetKey: Int,
@@ -567,16 +571,46 @@ actual fun PlatformMap(
                 return center + state.toScreen(x - size.width / 2.0, y - size.height / 2.0)
             }
 
-            // Saved tracks from the journal: thin background lines under the route.
-            val savedTrackColor = Color(0xFF78909C).copy(alpha = 0.85f)
-            for (line in simplifiedBackgroundTracks) {
+            // Saved tracks from the journal: one vivid color per track (cycled), under the route.
+            for ((trackIndex, line) in simplifiedBackgroundTracks.withIndex()) {
                 if (line.size < 2) continue
+                val savedTrackColor = Color(BG_TRACK_COLORS[trackIndex % BG_TRACK_COLORS.size]).copy(alpha = 0.9f)
                 for (i in 1 until line.size) {
                     drawLine(
                         color = savedTrackColor,
                         start = project(line[i - 1].lat, line[i - 1].lon),
                         end = project(line[i].lat, line[i].lon),
                         strokeWidth = 3.dp.toPx(),
+                    )
+                }
+            }
+
+            // Track opened from the journal: grade-colored like the elevation chart.
+            if (shownTrackPoints.size >= 2) {
+                val line = ru.azimut.app.core.model.simplifyGeoLine(shownTrackPoints)
+                val grades = shownTrackGrades
+                val useGrades = grades != null && grades.size == shownTrackPoints.size - 1
+                for (i in 1 until line.size) {
+                    val a = line[i - 1]
+                    val b = line[i]
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.9f),
+                        start = project(a.lat, a.lon),
+                        end = project(b.lat, b.lon),
+                        strokeWidth = 8.dp.toPx(),
+                    )
+                }
+                for (i in 1 until line.size) {
+                    val color = if (useGrades) {
+                        Color(GRADE_COLORS[gradeBucketOf(grades[i - 1]) - 1])
+                    } else {
+                        Color(0xFFFF6D00)
+                    }
+                    drawLine(
+                        color = color,
+                        start = project(line[i - 1].lat, line[i - 1].lon),
+                        end = project(line[i].lat, line[i].lon),
+                        strokeWidth = 5.dp.toPx(),
                     )
                 }
             }
@@ -1593,12 +1627,13 @@ private fun worldYToLat(y: Double, zoom: Double): Double {
 }
 
 /** Grade percent -> line color (flat green ... very steep red). */
-internal fun gradeColor(percent: Float): Color = when {
-    percent < 4f -> Color(0xFF4CAF50)
-    percent < 8f -> Color(0xFFFFC107)
-    percent < 12f -> Color(0xFFFF9800)
-    else -> Color(0xFFE53935)
-}
+internal fun gradeColor(percent: Float): Color = Color(GRADE_COLORS[gradeBucketOf(percent) - 1])
+
+/** Vivid per-track colors for journal «eye» lines (cycled by track index). */
+internal val BG_TRACK_COLORS = listOf(
+    0xFF7E57C2.toInt(), 0xFF00ACC1.toInt(), 0xFFFF7043.toInt(),
+    0xFF66BB6A.toInt(), 0xFF5C6BC0.toInt(), 0xFFEC407A.toInt(),
+)
 
 /** ARGB pixels of a shade tile -> Compose ImageBitmap. */
 private fun bufferedShadeBitmap(tile: ru.azimut.app.core.dem.HillshadeTile): ImageBitmap {

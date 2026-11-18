@@ -21,6 +21,9 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.net.ConnectivityReceiver
+import ru.azimut.app.ui.components.GRADE_COLORS
+import ru.azimut.app.ui.components.gradeBucketOf
+import ru.azimut.app.ui.components.gradeHex
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -65,6 +68,8 @@ actual fun PlatformMap(
     overlayLayer: String,
     overlayOpacity: Float,
     cacheOnly: Boolean,
+    shownTrackPoints: List<GeoPoint>,
+    shownTrackGrades: List<Float>?,
     showPois: Boolean,
     mapBearing: Float,
     orientationResetKey: Int,
@@ -240,34 +245,34 @@ actual fun PlatformMap(
         val grades = trackGrades
         if (grades != null && grades.size == trackPoints.size - 1 && trackPoints.size >= 2) {
             val features = withContext(Dispatchers.Default) {
-                // Buckets: 1 flat, 2 gentle, 3 steep, 4 very steep; segments chain per bucket.
-                val tails = arrayOfNulls<Point>(4)
-                val buckets = Array(4) { mutableListOf<Point>() }
-                for (i in 1 until trackPoints.size) {
-                    val b = gradeBucket(grades[i - 1]) - 1
-                    val prev = Point.fromLngLat(trackPoints[i - 1].lon, trackPoints[i - 1].lat)
-                    val cur = Point.fromLngLat(trackPoints[i].lon, trackPoints[i].lat)
-                    if (tails[b] != prev) {
-                        if (tails[b] != null && buckets[b].isNotEmpty()) buckets[b].clear()
-                        buckets[b].add(prev)
-                    }
-                    buckets[b].add(cur)
-                    tails[b] = cur
-                }
-                buckets.mapIndexed { index, pts ->
-                    if (pts.size >= 2) {
-                        Feature.fromGeometry(LineString.fromLngLats(pts)).apply {
-                            addNumberProperty("grade", index + 1)
-                        }
-                    } else {
-                        null
-                    }
-                }.filterNotNull()
+                gradeFeatures(trackPoints.map { it.lat to it.lon }, grades)
             }
             source.setGeoJson(FeatureCollection.fromFeatures(features.toTypedArray()))
         } else {
             val points = ru.azimut.app.core.model.simplifyTrack(trackPoints)
             .map { Point.fromLngLat(it.lon, it.lat) }
+            source.setGeoJson(
+                if (points.size >= 2) {
+                    FeatureCollection.fromFeature(Feature.fromGeometry(LineString.fromLngLats(points)))
+                } else {
+                    FeatureCollection.fromFeatures(emptyArray())
+                }
+            )
+        }
+    }
+
+    // Track opened from the journal: grade-colored when grades are available, else plain orange.
+    LaunchedEffect(shownTrackPoints, shownTrackGrades, styleVersion) {
+        val source = map?.style?.getSourceAs<GeoJsonSource>("shown-src") ?: return@LaunchedEffect
+        val grades = shownTrackGrades
+        if (grades != null && grades.size == shownTrackPoints.size - 1 && shownTrackPoints.size >= 2) {
+            val features = withContext(Dispatchers.Default) {
+                gradeFeatures(shownTrackPoints.map { it.lat to it.lon }, grades)
+            }
+            source.setGeoJson(FeatureCollection.fromFeatures(features.toTypedArray()))
+        } else {
+            val points = ru.azimut.app.core.model.simplifyGeoLine(shownTrackPoints)
+                .map { Point.fromLngLat(it.lon, it.lat) }
             source.setGeoJson(
                 if (points.size >= 2) {
                     FeatureCollection.fromFeature(Feature.fromGeometry(LineString.fromLngLats(points)))
@@ -313,14 +318,14 @@ actual fun PlatformMap(
     LaunchedEffect(backgroundTracks, styleVersion) {
         val source = map?.style?.getSourceAs<GeoJsonSource>("saved-tracks-src") ?: return@LaunchedEffect
         val features = withContext(Dispatchers.Default) {
-            backgroundTracks.map { line ->
+            backgroundTracks.mapIndexed { index, line ->
                 Feature.fromGeometry(
                     // Douglas-Peucker 1.5 m: fewer LatLngs for MapLibre to tessellate.
                     LineString.fromLngLats(
                         ru.azimut.app.core.model.simplifyGeoLine(line)
                             .map { Point.fromLngLat(it.lon, it.lat) }
                     )
-                )
+                ).apply { addNumberProperty("c", index) }
             }
         }
         source.setGeoJson(FeatureCollection.fromFeatures(features.toTypedArray()))
@@ -578,16 +583,20 @@ actual fun PlatformMap(
 }
 
 private fun ensureSources(style: Style) {
+    val gradeColors = GRADE_COLORS.map { gradeHex(it) }
     if (style.getSource("saved-tracks-src") == null) {
         // Registered first so journal tracks stay under the recorded/route lines.
+        // One vivid color per track (cycled) instead of a single dull grey.
         style.addSource(GeoJsonSource("saved-tracks-src", FeatureCollection.fromFeatures(emptyArray())))
-        style.addLayer(
-            LineLayer("saved-tracks-line", "saved-tracks-src").withProperties(
-                PropertyFactory.lineColor("#78909C"),
-                PropertyFactory.lineWidth(4f),
-                PropertyFactory.lineOpacity(0.85f),
+        BG_TRACK_COLORS.forEachIndexed { index, color ->
+            style.addLayer(
+                LineLayer("saved-tracks-line-$index", "saved-tracks-src").withProperties(
+                    PropertyFactory.lineColor(color),
+                    PropertyFactory.lineWidth(4f),
+                    PropertyFactory.lineOpacity(0.9f),
+                ).withFilter(Expression.eq(Expression.get("c"), index))
             )
-        )
+        }
     }
     if (style.getSource("protected-src") == null) {
         style.addSource(GeoJsonSource("protected-src", FeatureCollection.fromFeatures(emptyArray())))
@@ -669,10 +678,28 @@ private fun ensureSources(style: Style) {
                 )
         )
         // Grade-colored segments when DEM grades are available.
-        val gradeColors = listOf("#4CAF50", "#FFC107", "#FF9800", "#E53935")
         gradeColors.forEachIndexed { index, color ->
             style.addLayer(
                 LineLayer("track-grade-" + index, "track-src").withProperties(
+                    PropertyFactory.lineColor(color),
+                    PropertyFactory.lineWidth(5f),
+                ).withFilter(Expression.eq(Expression.get("grade"), index + 1))
+            )
+        }
+    }
+    if (style.getSource("shown-src") == null) {
+        style.addSource(GeoJsonSource("shown-src", FeatureCollection.fromFeatures(emptyArray())))
+        style.addLayer(
+            LineLayer("shown-line", "shown-src").withProperties(
+                PropertyFactory.lineColor("#FF6D00"),
+                PropertyFactory.lineWidth(5f),
+            ).withFilter(
+                Expression.eq(Expression.has(Expression.get("grade")), Expression.literal(false))
+            )
+        )
+        gradeColors.forEachIndexed { index, color ->
+            style.addLayer(
+                LineLayer("shown-grade-" + index, "shown-src").withProperties(
                     PropertyFactory.lineColor(color),
                     PropertyFactory.lineWidth(5f),
                 ).withFilter(Expression.eq(Expression.get("grade"), index + 1))
@@ -746,11 +773,37 @@ internal fun locationArrowBitmap(): android.graphics.Bitmap {
 }
 
 /** Grade percent -> color bucket 1..4 (flat, gentle, steep, very steep). */
-internal fun gradeBucket(percent: Float): Int = when {
-    percent < 4f -> 1
-    percent < 8f -> 2
-    percent < 12f -> 3
-    else -> 4
+internal fun gradeBucket(percent: Float): Int = gradeBucketOf(percent)
+
+/** Vivid per-track colors for journal «eye» lines (cycled by track index). */
+private val BG_TRACK_COLORS = listOf(
+    "#7E57C2", "#00ACC1", "#FF7043", "#66BB6A", "#5C6BC0", "#EC407A",
+)
+
+/** Chains consecutive same-bucket segments into per-bucket line features. */
+internal fun gradeFeatures(points: List<Pair<Double, Double>>, grades: List<Float>): List<Feature> {
+    val tails = arrayOfNulls<Point>(4)
+    val buckets = Array(4) { mutableListOf<Point>() }
+    for (i in 1 until points.size) {
+        val b = gradeBucket(grades[i - 1]) - 1
+        val prev = Point.fromLngLat(points[i - 1].second, points[i - 1].first)
+        val cur = Point.fromLngLat(points[i].second, points[i].first)
+        if (tails[b] != prev) {
+            if (tails[b] != null && buckets[b].isNotEmpty()) buckets[b].clear()
+            buckets[b].add(prev)
+        }
+        buckets[b].add(cur)
+        tails[b] = cur
+    }
+    return buckets.mapIndexed { index, pts ->
+        if (pts.size >= 2) {
+            Feature.fromGeometry(LineString.fromLngLats(pts)).apply {
+                addNumberProperty("grade", index + 1)
+            }
+        } else {
+            null
+        }
+    }.filterNotNull()
 }
 
 private const val STYLE_SAT = "asset://map_style_sat.json"

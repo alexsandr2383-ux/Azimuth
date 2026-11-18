@@ -530,6 +530,15 @@ fun MapScreen(
         }
     }
 
+    // Grade colors for the track opened from the journal (same palette as the chart).
+    var shownTrackGrades by remember { mutableStateOf<List<Float>?>(null) }
+    LaunchedEffect(shownTrack?.id, demStore) {
+        val t = shownTrack
+        shownTrackGrades = if (t == null || t.points.size < 2) null else withContext(Dispatchers.Default) {
+            runCatching { computeGrades(t.points, demStore) }.getOrNull()
+        }
+    }
+
 
     LaunchedEffect(current, settings.susaninEnabled, settings.protectedWarnings) {
         val fixNow = current
@@ -908,8 +917,10 @@ fun MapScreen(
             currentLocation = currentGeo,
             trackPoints = recorder.points,
             waypoints = visiblePoints,
-            routePoints = routeResult?.takeIf { it.ok }?.points ?: shownRoutePoints,
-            routeSections = routeResult?.takeIf { it.ok }?.sections ?: shownRouteSections,
+            routePoints = routeResult?.takeIf { it.ok }?.points ?: emptyList(),
+            routeSections = routeResult?.takeIf { it.ok }?.sections ?: emptyList(),
+            shownTrackPoints = if (shownTrack != null) shownRoutePoints else emptyList(),
+            shownTrackGrades = shownTrackGrades,
             routeStops = if (routeResult != null || routeDialogOpen || pickTarget != null) {
                 listOfNotNull(routeFrom) + routeVia + listOfNotNull(routeTo)
             } else {

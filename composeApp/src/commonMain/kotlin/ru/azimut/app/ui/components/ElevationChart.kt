@@ -25,12 +25,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ElevationChart(heights: List<Double?>, modifier: Modifier = Modifier, grades: List<Int>? = null) {
     val lineColor = MaterialTheme.colorScheme.primary
-    val gradeColors = listOf(
-        androidx.compose.ui.graphics.Color(0xFF4CAF50),
-        androidx.compose.ui.graphics.Color(0xFFFFC107),
-        androidx.compose.ui.graphics.Color(0xFFFF9800),
-        androidx.compose.ui.graphics.Color(0xFFE53935),
-    )
+    val gradeColors = GRADE_COLORS.map { androidx.compose.ui.graphics.Color(it) }
     val gridColor = MaterialTheme.colorScheme.onSurfaceVariant
     val min = heights.filterNotNull().minOrNull()
     val max = heights.filterNotNull().maxOrNull()
