@@ -119,6 +119,7 @@ actual fun PlatformMap(
     overlayEnabled: Boolean,
     overlayLayer: String,
     overlayOpacity: Float,
+    cacheOnly: Boolean,
     showPois: Boolean,
     mapBearing: Float,
     orientationResetKey: Int,
@@ -169,6 +170,7 @@ actual fun PlatformMap(
     val effectiveBaseOpacity = if (overlayEnabled && mapLayer != "satellite") baseOpacity else 1f
     val effectiveOverlayOpacity = if (overlayEnabled && mapLayer != "satellite") overlayOpacity else 1f
     val repository = remember { TileRepository(File(dataRoot, "maps/tilecache")) }
+    LaunchedEffect(cacheOnly) { repository.cacheOnly = cacheOnly }
     val scope = rememberCoroutineScope()
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var centered by remember { mutableStateOf(savedView != null) }
@@ -1407,6 +1409,10 @@ private class TileRepository(private val cacheRoot: File) {
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
     private val knownMissing = ConcurrentHashMap.newKeySet<String>()
 
+    /** Cache-only mode: background display loads never hit the network (area download still does). */
+    @Volatile
+    var cacheOnly = false
+
     /** Decoded tiles are ~256 KB each; without eviction a long session OOMs. */
     private val accessOrder = LinkedHashMap<String, Unit>(64, 0.75f, true)
 
@@ -1501,6 +1507,7 @@ private class TileRepository(private val cacheRoot: File) {
             }
             runCatching { file.readBytes() }.getOrNull()
         } else {
+            if (cacheOnly) return null
             val data = download(urlFor(layer, z, x, y)) ?: return null
             if (!isUsableTileSize(layer, data.size.toLong())) {
                 knownMissing.add(key)

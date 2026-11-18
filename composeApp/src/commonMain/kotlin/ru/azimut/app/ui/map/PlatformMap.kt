@@ -27,6 +27,8 @@ expect fun PlatformMap(
     overlayEnabled: Boolean = false,
     overlayLayer: String = "satellite_hd",
     overlayOpacity: Float = 0.6f,
+    /** Cache-only mode: never fetch display tiles from the network, show cached ones only. */
+    cacheOnly: Boolean = false,
     showPois: Boolean = true,
     /** Map rotation in degrees from true north (0 = north up). */
     mapBearing: Float = 0f,

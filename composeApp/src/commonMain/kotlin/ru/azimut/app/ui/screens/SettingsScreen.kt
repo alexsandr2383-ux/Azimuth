@@ -341,6 +341,15 @@ fun SettingsScreen(
                     valueRange = 0f..1f,
                 )
                 SwitchRow(
+                    tr("Только кэш (без сети)", "Cache only (no network)"),
+                    settings.cacheOnly,
+                    { onSettingsChange(settings.copy(cacheOnly = it)) },
+                    tr(
+                        "Карта не ходит в сеть за тайлами, показывает скачанное",
+                        "The map never fetches tiles online and shows what is already cached",
+                    ),
+                )
+                SwitchRow(
                     tr("Автосканирование файлов", "Auto-scan files"),
                     settings.autoScan,
                     { onSettingsChange(settings.copy(autoScan = it)) },

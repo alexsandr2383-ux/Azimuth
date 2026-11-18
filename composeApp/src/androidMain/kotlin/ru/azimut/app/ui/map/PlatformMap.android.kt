@@ -20,6 +20,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.net.ConnectivityReceiver
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -63,6 +64,7 @@ actual fun PlatformMap(
     overlayEnabled: Boolean,
     overlayLayer: String,
     overlayOpacity: Float,
+    cacheOnly: Boolean,
     showPois: Boolean,
     mapBearing: Float,
     orientationResetKey: Int,
@@ -100,6 +102,11 @@ actual fun PlatformMap(
     val currentLocationState by rememberUpdatedState(currentLocation)
     val layerState by rememberUpdatedState(mapLayer)
     val styleState by rememberUpdatedState(mapStyle)
+    // Cache-only: force MapLibre off the network. A forced value is sticky —
+    // connectivity broadcasts do not reset it until it is cleared with null.
+    LaunchedEffect(cacheOnly) {
+        ConnectivityReceiver.instance(context).setConnected(if (cacheOnly) false else null)
+    }
 
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var styleVersion by remember { mutableIntStateOf(0) }

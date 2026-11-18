@@ -114,6 +114,8 @@ data class AppSettings(
     val overlayEnabled: Boolean = false,
     val overlayLayer: String = "satellite_hd",
     val overlayOpacity: Float = 0.6f,
+    /** Cache-only mode: the map never requests tiles over the network, shows cached ones only. */
+    val cacheOnly: Boolean = false,
     val showPois: Boolean = true,
     val poiTypes: Set<String> = PoiTypes.defaults,
     /** Last map viewport, restored on launch (mobile; desktop uses MapViewStore). */

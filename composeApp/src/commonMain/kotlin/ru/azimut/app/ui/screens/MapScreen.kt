@@ -923,6 +923,7 @@ fun MapScreen(
             overlayEnabled = settings.overlayEnabled,
             overlayLayer = settings.overlayLayer,
             overlayOpacity = settings.overlayOpacity,
+            cacheOnly = settings.cacheOnly,
             showPois = settings.showPois,
             mapBearing = mapBearing,
             orientationResetKey = orientationReset,
