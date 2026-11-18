@@ -179,6 +179,8 @@ data class AppSettings(
     val bigSpeed: Boolean = false,
     /** Hillshade overlay from the imported DEM. */
     val hillshade: Boolean = false,
+    /** Hillshade blend strength: 0.1 subtle … 0.8 heavy (DemShade tile alpha). */
+    val hillshadeOpacity: Float = 0.35f,
     /** Warn when approaching a saved waypoint (off by default: it beeps). */
     val proximityAlerts: Boolean = false,
     /** Map menu shows every item; compact shows only the frequent ones. */

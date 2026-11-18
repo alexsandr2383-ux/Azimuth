@@ -817,7 +817,7 @@ fun MapScreen(
         // and doing it synchronously in composition froze the whole UI (white screen
         // on restart, since the setting persists and the render ran at first frame).
         var hillshadeTiles by remember { mutableStateOf(emptyList<HillshadeTile>()) }
-        LaunchedEffect(hillshadeKey) {
+        LaunchedEffect(hillshadeKey, settings.hillshadeOpacity) {
             if (hillshadeKey == null) {
                 hillshadeTiles = emptyList()
                 return@LaunchedEffect
@@ -827,7 +827,7 @@ fun MapScreen(
                     buildList {
                         for (part in hillshadeKey.split(",")) {
                             val bounds = ru.azimut.app.core.dem.DemIndex.tileBounds(part.trim()) ?: continue
-                            DemShade.tileFor(demStore, bounds.first + 0.5, bounds.second + 0.5)?.let { add(it) }
+                            DemShade.tileFor(demStore, bounds.first + 0.5, bounds.second + 0.5, opacity = settings.hillshadeOpacity)?.let { add(it) }
                         }
                     }
                 }.getOrDefault(emptyList())

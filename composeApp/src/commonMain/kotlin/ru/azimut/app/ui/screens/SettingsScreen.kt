@@ -817,6 +817,12 @@ fun SettingsScreen(
                     tr("Файлов DEM", "DEM files"),
                     "${demFiles.size} · ${PlatformFiles.navDataRoot()}/dem",
                 )
+                Text(tr("Интенсивность рельефа", "Hillshade intensity"), style = MaterialTheme.typography.bodyLarge)
+                Slider(
+                    value = settings.hillshadeOpacity,
+                    onValueChange = { onSettingsChange(settings.copy(hillshadeOpacity = it)) },
+                    valueRange = 0.1f..0.8f,
+                )
                 var demBusy by remember { mutableStateOf(false) }
                 var demProgress by remember { mutableStateOf<String?>(null) }
                 val pickDem = rememberTrackFilePicker(
