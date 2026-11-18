@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -91,11 +92,11 @@ fun App() {
     var summaries by remember { mutableStateOf<List<TrackSummary>>(emptyList()) }
     var trash by remember { mutableStateOf<List<ru.azimut.app.core.storage.TrashedTrack>>(emptyList()) }
     var screen by remember { mutableStateOf(Screen.Map) }
-    var previousScreen by remember { mutableStateOf(Screen.Map) }
+    val backStack = remember { mutableStateListOf<Screen>() }
     val showMapRequest by AppCommands.showMap.collectAsState()
     LaunchedEffect(showMapRequest) {
         if (showMapRequest > 0) {
-            previousScreen = Screen.Map
+            backStack.clear()
             screen = Screen.Map
         }
     }
@@ -187,7 +188,7 @@ fun App() {
 
     fun navigate(next: Screen) {
         if (next != screen) {
-            previousScreen = screen
+            backStack.add(screen)
             screen = next
         }
     }
@@ -197,10 +198,9 @@ fun App() {
         screen = next
     }
 
+    /** «Назад» goes one step up the navigation stack, ending at the map. */
     fun goBack() {
-        val target = previousScreen
-        previousScreen = Screen.Map
-        screen = target
+        screen = backStack.removeLastOrNull() ?: Screen.Map
     }
 
     fun toggleTrackShown(track: Track) {

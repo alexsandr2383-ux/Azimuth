@@ -1261,7 +1261,7 @@ fun MapScreen(
             MapLayersSheet(
                 settings = settings,
                 onSettingsChange = onSettingsChange,
-                allStyles = MapStyles.all,
+                allStyles = MapStyles.all + ru.azimut.app.core.map.UserXyz.asStyles(),
                 overlayOptions = MapStyles.satelliteOptions +
                     UserMaps.stylesFlow.collectAsState().value.map { it.cacheLayer to Pair(it.titleRu, it.titleEn) },
                 onPoiTypes = { showPoiTypes = true },

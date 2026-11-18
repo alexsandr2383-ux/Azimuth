@@ -322,7 +322,8 @@ fun SettingsScreen(
                 ) { onSettingsChange(settings.copy(mapLayer = it)) }
                 DropdownRow(
                     tr("Стиль базовой карты", "Base map style"),
-                    MapStyles.all.map { it.id to it.title(settings.language) },
+                    MapStyles.all.map { it.id to it.title(settings.language) } +
+                        ru.azimut.app.core.map.UserXyz.asStyles().map { it.id to it.title(settings.language) },
                     settings.mapStyle,
                 ) { onSettingsChange(settings.copy(mapLayer = "base", mapStyle = it)) }
                 Text(tr("Прозрачность слоя", "Layer opacity"), style = MaterialTheme.typography.bodyLarge)
@@ -1060,7 +1061,7 @@ fun SettingsScreen(
                 )
             }
 
-            if (!compact) AccordionSection(
+            AccordionSection(
                 tr("XYZ-карты по ссылке", "XYZ map sources"),
                 expanded("xyz"),
                 { setExpanded("xyz") },

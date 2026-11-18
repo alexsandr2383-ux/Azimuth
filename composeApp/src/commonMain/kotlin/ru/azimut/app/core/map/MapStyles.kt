@@ -108,9 +108,14 @@ object MapStyles {
         ),
     )
 
-    fun byId(id: String?): MapStyle = all.firstOrNull { it.id == id } ?: all.first()
+    fun byId(id: String?): MapStyle =
+        all.firstOrNull { it.id == id }
+            ?: UserXyz.asStyles().firstOrNull { it.id == id }
+            ?: all.first()
 
-    fun byCacheLayer(layer: String): MapStyle? = all.firstOrNull { it.cacheLayer == layer }
+    fun byCacheLayer(layer: String): MapStyle? =
+        all.firstOrNull { it.cacheLayer == layer }
+            ?: UserXyz.asStyles().firstOrNull { it.cacheLayer == layer }
 
     fun title(style: MapStyle, lang: String): String = style.title(lang)
 
