@@ -1,4 +1,4 @@
-# Азимут / Azimuth — документация разработчика (v0.4.1)
+# Азимут / Azimuth — документация разработчика (v0.5.0)
 
 Всё, что нужно для продолжения работы. Пользовательская инструкция — `INSTRUKCIYA.md` (обновляется вместе с кодом).
 
@@ -80,7 +80,7 @@ powershell: Word COM → SaveAs(..., 17)   # xelatex/pandoc-pdf на машин�
 - NavData: `maps/ tracks/ dem/ photos/ voice/ backups/ import/ protected/ export/ xyz/ routing/segments4 profiles2`.
 - Автоимпорт из `import/` на старте (gpx kml kmz tcx geojson json mbtiles sqlitedb gpkg hgt tif tiff), исключение `autoscan.json`.
 - Источники: Copernicus GLO-30/90 (S3, без токена), Overpass API (overpass-api.de), Open-Meteo (текущая+24 ч). Никаких выдуманных URL.
-- Версия 0.4.1: см. «Версионирование».
+- Версия 0.5.0: см. «Версионирование» и `AppInfo.kt`. Desktop `packageVersion` синхронизирован с `AppInfo`.
 
 ## Известные ограничения
 - Векторные .mbtiles — отказ; броды только из OSM-роутинга; SMB нет; PIN-шифрование бэкапов нет.
@@ -94,4 +94,4 @@ powershell: Word COM → SaveAs(..., 17)   # xelatex/pandoc-pdf на машин�
 1. **P5 iOS** — только при наличии Mac; архитектура готова (expect/actual изолированы).
 2. **Нижняя навигационная панель** — сделана в 0.3.4 (ширина < 600 dp; выпадающее меню карты сохранено).
 3. Идеи на потом: кластеры POI на Android, поиск АЗС для трамплинов-топлива (нужен офлайн-источник данных).
-4. Тесты: синк/DEM/ретеншн/ДП/EXIF/TileDb-битые/трек-сравнение/топливо покрыты (83 теста); осталась Compose UI-инфраструктура (uiTest + правила навигации).
+4. Тесты: синк/DEM/ретеншн/ДП/EXIF/TileDb-битые/трек-сравнение/топливо покрыты (96 desktop-тестов, `desktopTest`); осталась Compose UI-инфраструктура (uiTest + правила навигации).

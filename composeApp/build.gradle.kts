@@ -112,7 +112,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Azimuth"
-            packageVersion = "0.3.4"
+            packageVersion = "0.5.0"
             description = "Azimuth - offline navigation for enduro and hiking"
             vendor = "Sklyarov Aleksandr Mikhailovich"
             // java.sql is needed by sqlite-jdbc (.mbtiles); jlink drops it otherwise.

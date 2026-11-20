@@ -36,6 +36,12 @@ phone-import/
 # Local POI research data (Overpass fetches)
 /.poi/
 
+# Local/generated docs and audit prompts (keep INSTRUKCIYA.md tracked)
+/INSTRUKCIYA.docx
+/INSTRUKCIYA.pdf
+/prompt_azimuth_audit.json
+/промт_Азимут.txt
+
 # Test-runner home (workaround for the Cyrillic-username Gradle worker issue)
 /.gradle-home/
 /.gradle-tmp/
