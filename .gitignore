@@ -45,3 +45,9 @@ phone-import/
 # Test-runner home (workaround for the Cyrillic-username Gradle worker issue)
 /.gradle-home/
 /.gradle-tmp/
+
+# Release signing (never commit)
+keystore.properties
+*.jks
+*.keystore
+*.b64

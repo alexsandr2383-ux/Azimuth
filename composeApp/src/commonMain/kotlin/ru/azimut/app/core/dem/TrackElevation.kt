@@ -71,7 +71,8 @@ object TrackElevation {
         var lastKnown = -1
         for (i in points.indices) {
             if (heights[i] == null) continue
-            if (lastKnown >= 0) {
+            // A recording gap is not a slope: skip the bridge between segments.
+            if (lastKnown >= 0 && !points[i].segStart) {
                 val dx = distanceMeters(
                     GeoPoint(points[lastKnown].lat, points[lastKnown].lon),
                     GeoPoint(points[i].lat, points[i].lon),

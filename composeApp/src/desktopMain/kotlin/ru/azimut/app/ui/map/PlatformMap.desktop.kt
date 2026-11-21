@@ -417,8 +417,10 @@ actual fun PlatformMap(
     val simplifiedBackgroundTracks = remember(backgroundTracks) {
         backgroundTracks.map { ru.azimut.app.core.model.simplifyGeoLine(it) }
     }
-    val simplifiedTrackPoints = remember(trackPoints) {
-        ru.azimut.app.core.model.simplifyTrack(trackPoints)
+    // Grades are per original segment, so grade colouring needs the unsimplified indices.
+    val simplifiedTrackPoints = remember(trackPoints, trackGrades) {
+        if (trackGrades != null && trackGrades.size == trackPoints.size - 1) trackPoints
+        else ru.azimut.app.core.model.simplifyTrack(trackPoints)
     }
 
     Box(
@@ -763,11 +765,13 @@ actual fun PlatformMap(
                         grades != null && grades.size == trackPoints.size - 1 -> gradeColor(grades[i - 1])
                         else -> Color(0xFFFF6D00)
                     }
+                    // A recording gap (pause / lost GPS / restart) is drawn dashed.
                     drawLine(
-                        color = color,
+                        color = if (b.segStart) Color(0xFF455A64) else color,
                         start = project(a.lat, a.lon),
                         end = project(b.lat, b.lon),
                         strokeWidth = 4.dp.toPx(),
+                        pathEffect = if (b.segStart) PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 8.dp.toPx())) else null,
                     )
                 }
             }

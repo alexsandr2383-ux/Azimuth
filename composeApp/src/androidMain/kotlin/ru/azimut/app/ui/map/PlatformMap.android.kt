@@ -250,6 +250,15 @@ actual fun PlatformMap(
     // Recorded track: single feature, or grade-bucketed features when DEM grades are available.
     LaunchedEffect(trackPoints, trackGrades, styleVersion) {
         val source = map?.style?.getSourceAs<GeoJsonSource>("track-src") ?: return@LaunchedEffect
+        // Gap bridges (segStart) are drawn dashed from their own source.
+        val gapSource = map?.style?.getSourceAs<GeoJsonSource>("track-gap-src")
+        val bridges = trackPoints.withIndex().filter { it.index > 0 && it.value.segStart }.map { (i, p) ->
+            val a = trackPoints[i - 1]
+            Feature.fromGeometry(
+                LineString.fromLngLats(listOf(Point.fromLngLat(a.lon, a.lat), Point.fromLngLat(p.lon, p.lat)))
+            )
+        }
+        gapSource?.setGeoJson(FeatureCollection.fromFeatures(bridges.toTypedArray()))
         val grades = trackGrades
         if (grades != null && grades.size == trackPoints.size - 1 && trackPoints.size >= 2) {
             val features = withContext(Dispatchers.Default) {
@@ -257,14 +266,13 @@ actual fun PlatformMap(
             }
             source.setGeoJson(FeatureCollection.fromFeatures(features.toTypedArray()))
         } else {
-            val points = ru.azimut.app.core.model.simplifyTrack(trackPoints)
-            .map { Point.fromLngLat(it.lon, it.lat) }
+            val lines = ru.azimut.app.core.model.splitSegments(ru.azimut.app.core.model.simplifyTrack(trackPoints))
+                .map { seg -> seg.map { Point.fromLngLat(it.lon, it.lat) } }
+                .filter { it.size >= 2 }
             source.setGeoJson(
-                if (points.size >= 2) {
-                    FeatureCollection.fromFeature(Feature.fromGeometry(LineString.fromLngLats(points)))
-                } else {
-                    FeatureCollection.fromFeatures(emptyArray())
-                }
+                FeatureCollection.fromFeatures(
+                    lines.map { Feature.fromGeometry(LineString.fromLngLats(it)) }.toTypedArray()
+                )
             )
         }
     }
@@ -687,6 +695,14 @@ private fun ensureSources(style: Style) {
             ).withFilter(
                     Expression.eq(Expression.has(Expression.get("grade")), Expression.literal(false))
                 )
+        )
+        style.addSource(GeoJsonSource("track-gap-src", FeatureCollection.fromFeatures(emptyArray())))
+        style.addLayer(
+            LineLayer("track-gap", "track-gap-src").withProperties(
+                PropertyFactory.lineColor("#455A64"),
+                PropertyFactory.lineWidth(4f),
+                PropertyFactory.lineDasharray(arrayOf(2f, 2f)),
+            )
         )
         // Grade-colored segments when DEM grades are available.
         gradeColors.forEachIndexed { index, color ->

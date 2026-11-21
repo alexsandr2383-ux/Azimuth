@@ -50,8 +50,25 @@ fun <T> simplifyPoints(
 }
 
 /** Simplification of a recorded track (TrackPoint keeps its timestamp). */
-fun simplifyTrack(points: List<TrackPoint>, epsilonMeters: Double = 1.5): List<TrackPoint> =
-    simplifyPoints(points, { it.lat }, { it.lon }, epsilonMeters)
+fun simplifyTrack(points: List<TrackPoint>, epsilonMeters: Double = 1.5): List<TrackPoint> {
+    if (points.none { it.segStart }) return simplifyPoints(points, { it.lat }, { it.lon }, epsilonMeters)
+    // Segments are simplified separately so gap boundaries (segStart points) always survive.
+    return splitSegments(points).flatMap { simplifyPoints(it, { p -> p.lat }, { p -> p.lon }, epsilonMeters) }
+}
+
+/** Splits a recorded track into continuous runs at every [TrackPoint.segStart]. */
+fun splitSegments(points: List<TrackPoint>): List<List<TrackPoint>> {
+    val result = mutableListOf<List<TrackPoint>>()
+    var from = 0
+    for (i in 1 until points.size) {
+        if (points[i].segStart) {
+            result.add(points.subList(from, i))
+            from = i
+        }
+    }
+    if (points.isNotEmpty()) result.add(points.subList(from, points.size))
+    return result
+}
 
 /** Simplification of a lightweight lat/lon line (GeoPoint). */
 fun simplifyGeoLine(points: List<GeoPoint>, epsilonMeters: Double = 1.5): List<GeoPoint> =

@@ -29,6 +29,16 @@ import ru.azimut.app.ui.tr
 /** The «Интерфейс» and «О приложении» groups, split out of SettingsScreen.kt. */
 
 @Composable
+fun SettingsGroupLabel(text: String) {
+    androidx.compose.material3.Text(
+        text.uppercase(),
+        modifier = androidx.compose.ui.Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+    )
+}
+
+@Composable
 fun ColumnScope.InterfaceSection(
     settings: AppSettings,
     onSettingsChange: (AppSettings) -> Unit,

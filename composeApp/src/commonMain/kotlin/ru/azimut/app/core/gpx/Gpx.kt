@@ -48,7 +48,8 @@ object Gpx {
             }
         }
         sb.append("    <trkseg>\n")
-        for (p in track.points) {
+        for ((idx, p) in track.points.withIndex()) {
+            if (p.segStart && idx > 0) sb.append("    </trkseg>\n    <trkseg>\n")
             sb.append("      <trkpt lat=\"${coord(p.lat)}\" lon=\"${coord(p.lon)}\">\n")
             if (p.altitude != null) sb.append("        <ele>${formatFixed(p.altitude, 1)}</ele>\n")
             if (p.timeMillis > 0) sb.append("        <time>${iso(p.timeMillis)}</time>\n")
@@ -124,6 +125,7 @@ object Gpx {
                 ?: Clock.System.now().toEpochMilliseconds()
             var distance = 0.0
             for (i in 1 until points.size) {
+                if (points[i].segStart) continue
                 distance += distanceMeters(
                     GeoPoint(points[i - 1].lat, points[i - 1].lon),
                     GeoPoint(points[i].lat, points[i].lon),
@@ -182,7 +184,15 @@ object Gpx {
     private fun parseTrackPoints(xml: String): List<TrackPoint> {
         val result = mutableListOf<TrackPoint>()
         val trkptRegex = Regex("<trkpt\\b([^>]*)>(.*?)</trkpt>", RegexOption.DOT_MATCHES_ALL)
+        // Each <trkseg> after the first one marks its first point as a segment start.
+        val segPositions = Regex("<trkseg\\b").findAll(xml).map { it.range.first }.toList()
+        var segIdx = 0
         trkptRegex.findAll(xml).forEach { m ->
+            var newSeg = false
+            while (segIdx < segPositions.size && segPositions[segIdx] < m.range.first) {
+                if (segIdx > 0) newSeg = true
+                segIdx++
+            }
             val attributes = m.groupValues[1]
             val lat = attrValue(attributes, "lat")?.toDoubleOrNull() ?: return@forEach
             val lon = attrValue(attributes, "lon")?.toDoubleOrNull() ?: return@forEach
@@ -198,6 +208,7 @@ object Gpx {
                     bearing = tagValue(body, "azimut:bearing")?.toFloatOrNull(),
                     susanin = tagValue(body, "azimut:susanin")?.equals("true", ignoreCase = true) == true,
                     trail = tagValue(body, "azimut:trail")?.equals("true", ignoreCase = true) == true,
+                    segStart = newSeg && result.isNotEmpty(),
                 )
             )
         }

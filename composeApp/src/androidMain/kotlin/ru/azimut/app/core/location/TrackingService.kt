@@ -17,6 +17,7 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import ru.azimut.app.MainActivity
@@ -24,6 +25,7 @@ import ru.azimut.app.R
 import ru.azimut.app.core.model.AppSettings
 import ru.azimut.app.core.platform.AndroidApp
 import ru.azimut.app.core.platform.PlatformLocation
+import ru.azimut.app.core.platform.mslOrNull
 import ru.azimut.app.core.storage.SettingsStore
 import ru.azimut.app.core.storage.TrackStore
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +38,19 @@ class TrackingService : Service(), LocationListener {
 
     private lateinit var locationManager: LocationManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    /** Keeps the CPU awake so GPS callbacks are not batched/dropped in Doze while recording. */
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        runCatching {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "azimut:tracking").apply {
+                setReferenceCounted(false)
+                acquire(12 * 60 * 60 * 1000L)
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -53,6 +68,7 @@ class TrackingService : Service(), LocationListener {
         ru.azimut.app.core.platform.PlatformBarometer.start()
         createChannel()
         startForegroundCompat()
+        acquireWakeLock()
     }
 
     private val screenOffReceiver = object : BroadcastReceiver() {
@@ -146,6 +162,7 @@ class TrackingService : Service(), LocationListener {
             )
         } catch (_: Exception) {
         }
+        ru.azimut.app.core.platform.GeoidNmea.register(locationManager)
         try {
             locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                 ?.let { TrackRecorder.onPassiveFix(it.toFix()) }
@@ -163,10 +180,9 @@ class TrackingService : Service(), LocationListener {
         lon = longitude,
         // GPS altitude first; when this fix has none, fall back to the calibrated
         // barometer (the sensor also refreshes its offset from any GPS altitude here).
-        altitude = if (hasAltitude()) {
-            ru.azimut.app.core.platform.PlatformBarometer.calibrate(altitude)
-            altitude
-        } else {
+        altitude = mslOrNull()?.also {
+            ru.azimut.app.core.platform.PlatformBarometer.calibrate(it)
+        } ?: run {
             ru.azimut.app.core.platform.PlatformBarometer.altitudeMeters.value
         },
         accuracy = if (hasAccuracy()) accuracy else null,
@@ -202,6 +218,7 @@ class TrackingService : Service(), LocationListener {
             }
             return START_STICKY
         }
+        acquireWakeLock()
         // Applies a new interval/power mode too: every start re-requests GPS updates.
         runCatching { locationManager.removeUpdates(this) }
         startUpdates()
@@ -211,6 +228,9 @@ class TrackingService : Service(), LocationListener {
 
     override fun onDestroy() {
         runCatching { locationManager.removeUpdates(this) }
+        ru.azimut.app.core.platform.GeoidNmea.unregister(locationManager)
+        runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
+        wakeLock = null
         ru.azimut.app.core.platform.PlatformBarometer.stop()
         if (screenReceiverRegistered) runCatching { unregisterReceiver(screenOffReceiver) }
         screenReceiverRegistered = false

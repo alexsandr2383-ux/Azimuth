@@ -1,3 +1,5 @@
+import java.util.Properties
+
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -94,9 +96,32 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Release signing: keystore.properties (local, git-ignored) or env vars (CI secrets).
+    //   storeFile=..\azimut-release.jks  storePassword=...  keyAlias=azimut  keyPassword=...
+    val signingProps = Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    fun signing(key: String, env: String): String? =
+        signingProps.getProperty(key) ?: System.getenv(env)
+    val releaseStore = signing("storeFile", "KEYSTORE_FILE")
+    signingConfigs {
+        if (releaseStore != null) {
+            create("release") {
+                storeFile = rootProject.file(releaseStore)
+                storePassword = signing("storePassword", "KEYSTORE_PASSWORD")
+                keyAlias = signing("keyAlias", "KEY_ALIAS")
+                keyPassword = signing("keyPassword", "KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         getByName("release") {
+            // R8 is off on purpose: kotlinx.serialization, MapLibre, BRouter and sqlite-jdbc need
+            // keep-rules that must be verified on a device before shrinking is enabled.
             isMinifyEnabled = false
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -112,7 +137,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Azimuth"
-            packageVersion = "0.5.0"
+            packageVersion = "0.5.1"
             description = "Azimuth - offline navigation for enduro and hiking"
             vendor = "Sklyarov Aleksandr Mikhailovich"
             // java.sql is needed by sqlite-jdbc (.mbtiles); jlink drops it otherwise.

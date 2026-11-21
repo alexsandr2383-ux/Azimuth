@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- LAN sync / self-hosted WebDAV use http://<private IP>; IP ranges cannot be whitelisted here,
+     so cleartext is allowed app-wide (the app itself only calls https public services). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -53,6 +53,12 @@ object TrackRecorder {
     @Volatile private var batterySaver = false
     @Volatile private var skipStops = false
 
+    /** Next recorded point opens a new segment (after a pause, restart or long GPS gap). */
+    private var breakNext = false
+
+    /** A silence longer than this between accepted fixes is a recording gap, not a slow stretch. */
+    private fun gapMs() = maxOf(30_000L, intervalMs * 10)
+
     /** Minimum time between recorded points. Battery saver never records more often than every 5 s. */
     fun configure(intervalSec: Int, batterySaverEnabled: Boolean, skipStopsEnabled: Boolean = false) {
         intervalMs = intervalSec.coerceIn(1, 3_600) * 1_000L
@@ -113,6 +119,7 @@ object TrackRecorder {
         // Continuing a journal track: keep its id, name, start time and old points, so
         // stopAndSave overwrites the same GPX instead of creating a duplicate.
         continueTrackId = continueFrom?.id
+        breakNext = continueFrom != null
         _state.value = TrackState(
             recording = true,
             name = continueFrom?.name ?: name ?: "Трек " + now.toString().takeLast(6),
@@ -149,7 +156,12 @@ object TrackRecorder {
             _state.value = current.copy(lastFix = fix)
             return
         }
+        val gap = previous != null && previous.timeMillis > 0 && fix.timeMillis > 0 &&
+            fix.timeMillis - previous.timeMillis > gapMs()
+        val segStart = previous != null && (breakNext || gap)
+        breakNext = false
         val point = TrackPoint(
+            segStart = segStart,
             lat = fix.lat,
             lon = fix.lon,
             altitude = fix.altitude,
@@ -159,7 +171,7 @@ object TrackRecorder {
             bearing = fix.bearing,
             susanin = current.susanin,
         )
-        val add = if (previous == null) 0.0 else distanceMeters(
+        val add = if (previous == null || segStart) 0.0 else distanceMeters(
             GeoPoint(previous.lat, previous.lon),
             GeoPoint(point.lat, point.lon),
         )
@@ -184,6 +196,7 @@ object TrackRecorder {
     @Synchronized
     fun restore(track: Track): Boolean {
         if (track.points.isEmpty()) return false
+        breakNext = true
         val last = track.points.last()
         _state.value = TrackState(
             recording = true,
@@ -217,7 +230,10 @@ object TrackRecorder {
     @Synchronized
     fun setPaused(paused: Boolean) {
         val current = _state.value
-        if (current.recording) _state.value = current.copy(paused = paused)
+        if (current.recording) {
+            if (!paused && current.paused) breakNext = true
+            _state.value = current.copy(paused = paused)
+        }
     }
 
     @Synchronized

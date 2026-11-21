@@ -68,7 +68,7 @@ internal fun MapSearchSheet(
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text(tr("Название точки или координаты", "Point name or coordinates")) },
+                label = { Text(tr("Точка или координаты: 55.75, 37.62 или N55°45'", "Point or coordinates: 55.75, 37.62 or N55°45'")) },
             )
             if (q.isEmpty()) {
                 // Show the saved points right away instead of an empty hint.

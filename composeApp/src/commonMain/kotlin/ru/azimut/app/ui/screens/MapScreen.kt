@@ -170,6 +170,7 @@ fun MapScreen(
     onOpenSettings: () -> Unit,
     onOpenHelp: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenRoutes: () -> Unit = {},
     /** Bumped by the app when NavData content changes; reloads DEM cache and OOPT layer. */
     dataVersion: Int = 0,
     /** Saved track/plan shown on the map (from the journal or a built route). */
@@ -214,7 +215,6 @@ fun MapScreen(
     val poiTypeCounts = remember(points) { points.groupingBy { it.poiType }.eachCount() }
 
     var showMenu by remember { mutableStateOf(false) }
-    var controlsExpanded by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
     var showPoiTypes by remember { mutableStateOf(false) }
     var picked by remember { mutableStateOf<GeoPoint?>(null) }
@@ -227,7 +227,6 @@ fun MapScreen(
         TrackRecorder.saveFailed.collect { message = saveFailedMessage }
     }
     var showExit by remember { mutableStateOf(false) }
-    var showGoto by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var selectedWaypoint by remember { mutableStateOf<Waypoint?>(null) }
     var showStartRecording by remember { mutableStateOf(false) }
@@ -245,7 +244,6 @@ fun MapScreen(
         }
     }
     var showStopRecording by remember { mutableStateOf(false) }
-    var gotoText by remember { mutableStateOf("") }
     var gotoTarget by remember { mutableStateOf<GeoPoint?>(null) }
     var gotoKey by remember { mutableStateOf(0) }
     var routeDialogOpen by remember { mutableStateOf(false) }
@@ -1340,16 +1338,6 @@ fun MapScreen(
                 ) { recenter++ }
             }
 
-            // Mobile: always-visible download button (the "Layers" menu item is tucked
-            // away under "More"). Desktop has its own button with area selection.
-            if (!PlatformInfo.isDesktop) {
-                MapControl(
-                    Icons.Filled.CloudDownload,
-                    tr("Скачать видимую область", "Download visible area"),
-                    size = controlSize,
-                ) { areaDownload++ }
-            }
-
             MapControl(
                 Icons.Filled.Route,
                 tr("Маршрут", "Route"),
@@ -1369,54 +1357,11 @@ fun MapScreen(
                 )
             }
 
-            MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
-            if (showMenu) {
-                MapMenuSheet(
-                    onDismiss = { showMenu = false },
-                    onGoto = { showMenu = false; showGoto = true },
-                    onPoints = { showMenu = false; onOpenPoints() },
-                    onJournal = { showMenu = false; onOpenJournal() },
-                    onSettings = { showMenu = false; onOpenSettings() },
-                    onHelp = { showMenu = false; onOpenHelp() },
-                    onAbout = { showMenu = false; onOpenAbout() },
-                    onDownloadPoi = { showMenu = false; downloadPoiHere() },
-                )
-            }
 
-            if (controlsExpanded) {
             MapControl(Icons.Filled.AddLocationAlt, tr("Точка", "Waypoint"), size = controlSize) {
                 if (currentGeo == null) message = noFixMessage else picked = currentGeo
             }
 
-
-            MapControl(Icons.Filled.Home, tr("База", "Base"), settings.basePoint != null, size = controlSize) {
-                val fix = recorder.lastFix
-                if (fix == null) {
-                    message = noFixMessage
-                } else {
-                    onSettingsChange(settings.copy(baseLat = fix.lat, baseLon = fix.lon))
-                    message = baseSavedMessage
-                }
-            }
-
-            MapControl(
-                Icons.Filled.Warning,
-                tr("Режим Сусанина", "Explorer Mode"),
-                settings.susaninEnabled,
-                size = controlSize,
-            ) {
-                val next = !settings.susaninEnabled
-                onSettingsChange(settings.copy(susaninEnabled = next))
-                TrackRecorder.setSusanin(next)
-            }
-
-            if (settings.susaninEnabled) {
-                MapControl(Icons.Filled.ExitToApp, tr("Выйти отсюда", "Get me out"), size = controlSize) {
-                    showExit = true
-                }
-            }
-
-            }
             if (showPoiTypes) {
                 AlertDialog(
                     onDismissRequest = { showPoiTypes = false },
@@ -1501,11 +1446,37 @@ fun MapScreen(
                 }
             }
 
-            MapControl(
-                if (controlsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                if (controlsExpanded) tr("Свернуть", "Collapse") else tr("Ещё", "More"),
-                size = controlSize,
-            ) { controlsExpanded = !controlsExpanded }
+            MapControl(Icons.Filled.Menu, tr("Меню", "Menu"), size = controlSize) { showMenu = true }
+            if (showMenu) {
+                MapMenuSheet(
+                    onDismiss = { showMenu = false },
+                    onPoints = { showMenu = false; onOpenPoints() },
+                    onJournal = { showMenu = false; onOpenJournal() },
+                    onRoutes = { showMenu = false; onOpenRoutes() },
+                    onSettings = { showMenu = false; onOpenSettings() },
+                    onHelp = { showMenu = false; onOpenHelp() },
+                    onDownloadPoi = { showMenu = false; downloadPoiHere() },
+                    onDownloadArea = if (PlatformInfo.isDesktop) null else ({ showMenu = false; areaDownload++ }),
+                    baseSet = settings.basePoint != null,
+                    onSaveBase = {
+                        showMenu = false
+                        val fix = recorder.lastFix
+                        if (fix == null) {
+                            message = noFixMessage
+                        } else {
+                            onSettingsChange(settings.copy(baseLat = fix.lat, baseLon = fix.lon))
+                            message = baseSavedMessage
+                        }
+                    },
+                    susaninOn = settings.susaninEnabled,
+                    onToggleSusanin = {
+                        val next = !settings.susaninEnabled
+                        onSettingsChange(settings.copy(susaninEnabled = next))
+                        TrackRecorder.setSusanin(next)
+                    },
+                    onExitHere = if (settings.susaninEnabled) ({ showMenu = false; showExit = true }) else null,
+                )
+            }
         }
 
         // Bottom info
@@ -1799,16 +1770,6 @@ fun MapScreen(
         StopRecordingDialog(
             onStop = { showStopRecording = false; RecordingControl.stop() },
             onDismiss = { showStopRecording = false },
-        )
-    }
-
-    if (showGoto) {
-        GotoDialog(
-            text = gotoText,
-            onTextChange = { gotoText = it },
-            onDismiss = { showGoto = false },
-            onGo = { gotoTarget = it; gotoKey++; showGoto = false },
-            onInvalid = { message = it },
         )
     }
 

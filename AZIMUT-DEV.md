@@ -1,4 +1,4 @@
-# Азимут / Azimuth — документация разработчика (v0.5.0)
+# Азимут / Azimuth — документация разработчика (v0.5.1)
 
 Всё, что нужно для продолжения работы. Пользовательская инструкция — `INSTRUKCIYA.md` (обновляется вместе с кодом).
 
@@ -9,14 +9,14 @@
 .\gradlew.bat compileKotlinDesktop compileDebugKotlinAndroid   # быстрая проверка
 .\gradlew.bat assembleDebug                                     # APK: composeApp\build\outputs\apk\debug\
 .\gradlew.bat createDistributable                               # Desktop: composeApp\build\compose\binaries\main\app\Azimuth\Azimuth.exe
-.\gradlew.bat desktopTest                                       # unit-тесты (53)
+.\gradlew.bat desktopTest                                       # unit-тесты (98)
 ```
 
 **ВАЖНО: тесты запускать с ASCII-хомом Gradle** — с кириллическим `C:\Users\Александр\.gradle` воркер тестов падает
 (`GradleWorkerMain ClassNotFoundException`). Рабочий обход:
 
 ```
-set GRADLE_USER_HOME=D:\Azimut\.gradle-home
+set GRADLE_USER_HOME=D:\1_My_Project\Azimut_2\.gradle-home
 .\gradlew.bat desktopTest
 ```
 `.gradle-home` (1.6 ГБ, кэши зависимостей) и `.gradle-tmp` — в `.gitignore`.
@@ -56,7 +56,7 @@ powershell: Word COM → SaveAs(..., 17)   # xelatex/pandoc-pdf на машин�
 | `core/fuel/` | `FuelRange` — трамплины-топливо: остаток хода на полном баке, точки «резерв»/«сухой бак» на линии маршрута; настройки `fuelTankLiters/fuelConsumptionL100/fuelReserveLiters` (0 = выкл); считать на Dispatchers.Default |
 | `core/map/` | `MapStyles`, `UserMaps`(.mbtiles), `TileDb`(.sqlitedb/.gpkg→.mbtiles, gpkg y-flip по спеке; sqlitedb-зеркальность лечится маркером `<имя>.flip` в import/), `UserXyz`(XYZ-карты по URL-шаблону) |
 | `core/model/` | модели; `Geo.parseCoordPair` (DD/DMS/кириллические СЮВЗ/запятые); Waypoint.favorite; Track.fordCount |
-| `ui/screens/` | `MapScreen`(2168 строк — сердце; при росте выносить блоки; окно маршрута → `MapRouteDialog.kt`, контекст-меню карты → `MapContextMenu.kt`), `PointsScreen`(фильтры/поиск/импорт/экспорт/избранное), `JournalScreen`(проверка+PNG/PDF), `SettingsScreen`(секции: Карты/DEM/ООПТ/XYZ/Синк/Запись/Погода/Интерфейс), `SosScreen` — **удалён**, координаты в диалоге точки |
+| `ui/screens/` | `MapScreen`(~2030 строк — сердце; при росте выносить блоки; окно маршрута → `MapRouteDialog.kt`, контекст-меню карты → `MapContextMenu.kt`), `PointsScreen`(фильтры/поиск/импорт/экспорт/избранное), `JournalScreen`(проверка+PNG/PDF), `SettingsScreen`(секции: Карты/DEM/ООПТ/XYZ/Синк/Запись/Погода/Интерфейс), `SosScreen` — **удалён**, координаты в диалоге точки |
 | `ui/components/Files.kt` | `rememberTrackFilePicker`(мульти-формат), `rememberBytesSaver`, `rememberFolderPicker`(desktop JFileChooser / Android SAF+persistable) |
 | `ui/components/AppBottomNav.kt` | нижняя панель «Карта|Точки|Журнал|Ещё» (ширина < 600 dp; «Ещё» — ModalBottomSheet) |
 | `ui/components/Photos.kt` | фото-пайплайн; `rememberPhotoCapture` возвращает (имя, EXIF-geo) — геотеги точек |
@@ -68,6 +68,7 @@ powershell: Word COM → SaveAs(..., 17)   # xelatex/pandoc-pdf на машин�
 **Правила, которые нельзя ломать:**
 - тр() на каждый пользовательский текст (ru/en); строки, используемые в onClick/launch-колбэках, **хоистить** наверх composable (tr — @Composable).
 - IO — Dispatchers.IO/Default; запись трека никогда не блокируется; тяжёлое (парсинг зон/DEM/сериализация GPX) — не в композиции и не на main.
+- Запись трека: `TrackPoint.segStart` = первая точка после паузы/рестарта/разрыва GPS (> max(30 с, 10 интервалов)); в GPX это новый `<trkseg>`, дистанция «моста» не считается, на карте (запись) мост — пунктир. Сервис держит PARTIAL_WAKE_LOCK и один раз просит исключение из экономии батареи. Высота: на Android 14+ — MSL (`mslOrNull`), ниже — эллипсоид.
 - Новые поля моделей — только с default (JSON-миграция бесплатная).
 - Новые папки NavData — добавить в `PlatformFiles.ensureDirs()` (оба actual) и в zip-бэкап.
 - offline-first: сеть только по явному действию или подтверждению «Загрузить?».
@@ -80,7 +81,7 @@ powershell: Word COM → SaveAs(..., 17)   # xelatex/pandoc-pdf на машин�
 - NavData: `maps/ tracks/ dem/ photos/ voice/ backups/ import/ protected/ export/ xyz/ routing/segments4 profiles2`.
 - Автоимпорт из `import/` на старте (gpx kml kmz tcx geojson json mbtiles sqlitedb gpkg hgt tif tiff), исключение `autoscan.json`.
 - Источники: Copernicus GLO-30/90 (S3, без токена), Overpass API (overpass-api.de), Open-Meteo (текущая+24 ч). Никаких выдуманных URL.
-- Версия 0.5.0: см. «Версионирование» и `AppInfo.kt`. Desktop `packageVersion` синхронизирован с `AppInfo`.
+- Версия 0.5.1: см. «Версионирование» и `AppInfo.kt`. Desktop `packageVersion` синхронизирован с `AppInfo`.
 
 ## Известные ограничения
 - Векторные .mbtiles — отказ; броды только из OSM-роутинга; SMB нет; PIN-шифрование бэкапов нет.
@@ -88,12 +89,12 @@ powershell: Word COM → SaveAs(..., 17)   # xelatex/pandoc-pdf на машин�
 - LAN-синк: канал не шифрован (токен 12 симв., path-guard по canonical containment) — для домашней сети.
 - Overpass: relations → только внешние контуры; 429/504 → «сервер перегружен».
 - desktopTest требует GRADLE_USER_HOME-обход (см. выше).
-- Окно маршрута/контекст-меню вынесены из `MapScreen.kt` (2168 строк) в `MapRouteDialog.kt`/`MapContextMenu.kt`; дальнейшие кандидаты — `AddPointDialog`, карточки/панели.
+- Окно маршрута/контекст-меню вынесены из `MapScreen.kt` (~2030 строк) в `MapRouteDialog.kt`/`MapContextMenu.kt`; дальнейшие кандидаты — `AddPointDialog`, карточки/панели.
 
 ## Дорожная карта (обсуждено с заказчиком)
 1. **P5 iOS** — только при наличии Mac; архитектура готова (expect/actual изолированы).
 2. **Нижняя навигационная панель** — сделана в 0.3.4 (ширина < 600 dp; выпадающее меню карты сохранено).
 3. Идеи на потом: кластеры POI на Android, поиск АЗС для трамплинов-топлива (нужен офлайн-источник данных).
-4. Тесты: синк/DEM/ретеншн/ДП/EXIF/TileDb-битые/трек-сравнение/топливо покрыты (96 desktop-тестов, `desktopTest`); осталась Compose UI-инфраструктура (uiTest + правила навигации).
+4. Тесты: синк/DEM/ретеншн/ДП/EXIF/TileDb-битые/трек-сравнение/топливо покрыты (98 desktop-тестов, `desktopTest`); осталась Compose UI-инфраструктура (uiTest + правила навигации).
 5. **Форматы координат (ввод/импорт точек)** — сейчас только десятичные градусы (DD). Нужны автоопределение и/или выбор формата при импорте и ручном вводе (файлы организаторов/геокэшинг, сотни точек): DDM (N 55° 12.345'), DMS, варианты разделителей/колонок CSV и т.п.; уточнить по реальному файлу.
 6. **Подключение карт «как в AlpineQuest»** — уточнить сценарий (URL-шаблоны {s}/TMS {-y}/quadkey, WMS/WMTS, импорт каталогов/описаний провайдеров, пакетная загрузка области для пользовательских XYZ и др.); сейчас: XYZ {z}/{x}/{y} + растровый MBTiles (импорт .sqlitedb/.gpkg).

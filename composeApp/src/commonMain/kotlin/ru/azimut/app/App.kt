@@ -536,6 +536,7 @@ fun App() {
                     onDeletePoint = deletePoint,
                     onOpenPoints = { navigate(Screen.Points) },
                     onOpenJournal = { navigate(Screen.Journal) },
+                    onOpenRoutes = { navigate(Screen.Routes) },
                     onOpenSettings = { navigate(Screen.Settings) },
                     onOpenHelp = { navigate(Screen.Help) },
                     onOpenAbout = { navigate(Screen.About) },

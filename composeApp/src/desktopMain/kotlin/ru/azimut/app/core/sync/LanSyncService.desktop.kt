@@ -67,7 +67,10 @@ actual object LanSyncService {
     private fun handle(exchange: HttpExchange, token: String) {
         runCatching {
             val given = exchange.requestHeaders.getFirst("X-Azimut-Token")
-            if (given != token) {
+            val tokenOk = given != null && java.security.MessageDigest.isEqual(
+                given.toByteArray(Charsets.UTF_8), token.toByteArray(Charsets.UTF_8),
+            )
+            if (!tokenOk) {
                 exchange.sendResponseHeaders(403, -1)
                 return
             }

@@ -27,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -326,6 +327,7 @@ fun JournalScreen(
                                                 }
                                             },
                                         )
+                                        HorizontalDivider()
                                         if (track.kind != KIND_ROUTE) {
                                             DropdownMenuItem(
                                                 text = { Text(tr("Сравнить", "Compare")) },
@@ -341,19 +343,6 @@ fun JournalScreen(
                                                 },
                                             )
                                         }
-                                        DropdownMenuItem(
-                                            text = { Text("GPX") },
-                                            onClick = {
-                                                menuOpen = false
-                                                withTrack(track) { t ->
-                                                    // GPX serialization of a long track — off the UI thread.
-                                                    scope.launch {
-                                                        val content = withContext(Dispatchers.Default) { Gpx.writeTrack(t) }
-                                                        saveGpx(gpxFileName(t.name), content)
-                                                    }
-                                                }
-                                            },
-                                        )
                                         DropdownMenuItem(
                                             text = { Text(tr("Проверка", "Precheck")) },
                                             onClick = {
@@ -371,20 +360,36 @@ fun JournalScreen(
                                                 }
                                             },
                                         )
+                                        HorizontalDivider()
                                         DropdownMenuItem(
-                                            text = { Text("PNG") },
+                                            text = { Text(tr("Фоном на карте: вкл/выкл", "Background on map: on/off")) },
+                                            onClick = { menuOpen = false; withTrack(track) { onToggleShown(it) } },
+                                        )
+                                        HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text(tr("Экспорт GPX", "Export GPX")) },
+                                            onClick = {
+                                                menuOpen = false
+                                                withTrack(track) { t ->
+                                                    // GPX serialization of a long track — off the UI thread.
+                                                    scope.launch {
+                                                        val content = withContext(Dispatchers.Default) { Gpx.writeTrack(t) }
+                                                        saveGpx(gpxFileName(t.name), content)
+                                                    }
+                                                }
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(tr("Экспорт PNG", "Export PNG")) },
                                             onClick = { menuOpen = false; withTrack(track) { exportSheet(it, pdf = false) } },
                                             enabled = !exporting,
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("PDF") },
+                                            text = { Text(tr("Экспорт PDF", "Export PDF")) },
                                             onClick = { menuOpen = false; withTrack(track) { exportSheet(it, pdf = true) } },
                                             enabled = !exporting,
                                         )
-                                        DropdownMenuItem(
-                                            text = { Text(tr("Показать/скрыть на карте", "Show/hide on map")) },
-                                            onClick = { menuOpen = false; withTrack(track) { onToggleShown(it) } },
-                                        )
+                                        HorizontalDivider()
                                         DropdownMenuItem(
                                             text = {
                                                 Text(

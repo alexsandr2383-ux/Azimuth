@@ -21,6 +21,8 @@ data class TrackPoint(
     val susanin: Boolean = false,
     /** The segment leading to this point is a foot/bridle path ("TRAIL, not a road"). */
     val trail: Boolean = false,
+    /** First point after a recording gap/pause/restart: starts a new GPX <trkseg>, no bridge distance. */
+    val segStart: Boolean = false,
 )
 
 @Serializable

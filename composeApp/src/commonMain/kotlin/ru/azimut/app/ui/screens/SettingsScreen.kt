@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -307,6 +308,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
+            SettingsGroupLabel(tr("Карта", "Map"))
             AccordionSection(
                 tr("Карты и слои", "Maps & layers"),
                 expanded("maps"),
@@ -435,6 +437,119 @@ fun SettingsScreen(
                         "When downloading a map area, fetch POI for it too (needs network)",
                     ),
                 )
+
+            if (!compact) AccordionSection(
+                tr("Ориентация карты", "Map orientation"),
+                expanded("orientation"),
+                { setExpanded("orientation") },
+                icon = Icons.Filled.Explore,
+                iconTint = Color(0xFF1565C0),
+                summary = if (settings.orientationMode == "course") tr("По ходу", "Course up") else tr("Север вверху", "North up"),
+            ) {
+                ChoiceRow(
+                    tr("Режим", "Mode"),
+                    listOf(
+                        "north" to tr("Север", "North"),
+                        "course" to tr("Курс", "Course"),
+                    ),
+                    if (settings.orientationMode == "course") "course" else "north",
+                ) { onSettingsChange(settings.copy(orientationMode = it)) }
+            }
+
+            AccordionSection(
+                tr("XYZ-карты по ссылке", "XYZ map sources"),
+                expanded("xyz"),
+                { setExpanded("xyz") },
+                icon = Icons.Filled.Public,
+                iconTint = Color(0xFF00838F),
+            ) {
+                Text(
+                    tr(
+                        "XYZ — это онлайн-карта, заданная адресом-шаблоном вида " +
+                            "https://сервер/{z}/{x}/{y}.png. Добавьте название и адрес — карта " +
+                            "появится в меню «Слои» как базовая; просмотренные тайлы кэшируются " +
+                            "для офлайна. Подходит для любых серверов с таким шаблоном.",
+                        "XYZ means an online map defined by a template URL such as " +
+                            "https://server/{z}/{x}/{y}.png. Add a name and the address — the map " +
+                            "appears in Layers as a base map; viewed tiles are cached for offline use.",
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                ru.azimut.app.core.map.UserXyz.sourcesFlow.collectAsState().value.forEach { src ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(src.name, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "${src.minZoom}–${src.maxZoom} · ${src.attribution.ifBlank { "—" }}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                        TextButton(onClick = {
+                            ru.azimut.app.core.map.UserXyz.remove(src.id)
+                            onSettingsChange(
+                                if (settings.mapStyle == ru.azimut.app.core.map.UserXyz.PREFIX + src.id) {
+                                    settings.copy(mapLayer = "base", mapStyle = ru.azimut.app.core.map.MapStyles.DEFAULT_ID)
+                                } else settings
+                            )
+                        }) { Text(tr("Удалить", "Remove")) }
+                    }
+                }
+                var xyzName by remember { mutableStateOf("") }
+                var xyzUrl by remember { mutableStateOf("") }
+                var xyzMaxZoom by remember { mutableStateOf("18") }
+                OutlinedTextField(
+                    value = xyzName,
+                    onValueChange = { xyzName = it },
+                    label = { Text(tr("Название", "Name")) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = xyzUrl,
+                    onValueChange = { xyzUrl = it },
+                    label = { Text(tr("URL-шаблон {z}/{x}/{y}", "URL template {z}/{x}/{y}")) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = xyzMaxZoom,
+                    onValueChange = { xyzMaxZoom = it },
+                    label = { Text(tr("Максимальный zoom", "Max zoom")) },
+                    singleLine = true,
+                )
+                OutlinedButton(onClick = {
+                    val url = xyzUrl.trim()
+                    val name = xyzName.trim()
+                    val maxZoom = xyzMaxZoom.toIntOrNull() ?: 18
+                    if (url.contains("{z}") && url.contains("{x}") && url.contains("{y}") && name.isNotBlank()) {
+                        ru.azimut.app.core.map.UserXyz.save(
+                            ru.azimut.app.core.map.XyzSource(
+                                id = "u${System.currentTimeMillis()}",
+                                name = name,
+                                urlTemplate = url,
+                                maxZoom = maxZoom,
+                                addedAt = System.currentTimeMillis(),
+                            ),
+                        )
+                        xyzName = ""; xyzUrl = ""; xyzMaxZoom = "18"
+                        message = msgXyzAdded
+                    } else {
+                        message = msgXyzInvalid
+                    }
+                }) { Text(tr("Добавить источник", "Add source")) }
+                Text(
+                    tr(
+                        "Лицензия источника — ваша ответственность: проверьте условия использования тайлов.",
+                        "Source licensing is your responsibility: check the tile usage terms.",
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            SettingsGroupLabel(tr("Поездка", "Trip"))
             AccordionSection(
                 tr("Запись и треки", "Recording & tracks"),
                 expanded("tracking"),
@@ -534,24 +649,6 @@ fun SettingsScreen(
                 InfoRow(tr("Автосохранение", "Autosave"), tr("каждые 5 точек", "every 5 points"))
             }
 
-            if (!compact) AccordionSection(
-                tr("Ориентация карты", "Map orientation"),
-                expanded("orientation"),
-                { setExpanded("orientation") },
-                icon = Icons.Filled.Explore,
-                iconTint = Color(0xFF1565C0),
-                summary = if (settings.orientationMode == "course") tr("По ходу", "Course up") else tr("Север вверху", "North up"),
-            ) {
-                ChoiceRow(
-                    tr("Режим", "Mode"),
-                    listOf(
-                        "north" to tr("Север", "North"),
-                        "course" to tr("Курс", "Course"),
-                    ),
-                    if (settings.orientationMode == "course") "course" else "north",
-                ) { onSettingsChange(settings.copy(orientationMode = it)) }
-            }
-
             AccordionSection(
                 tr("Топливо", "Fuel"),
                 expanded("fuel"),
@@ -580,61 +677,6 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-
-            AccordionSection(
-                tr("Точки и фото", "Waypoints & media"),
-                expanded("points"),
-                { setExpanded("points") },
-                icon = Icons.Filled.PhotoCamera,
-                iconTint = Color(0xFFEF6C00),
-                summary = settings.photoQuality,
-            ) {
-                SwitchRow(
-                    tr("Голосовые заметки", "Voice notes"),
-                    settings.voiceNotes,
-                    { onSettingsChange(settings.copy(voiceNotes = it)) },
-                )
-                SwitchRow(
-                    tr("Предупреждать о точках", "Waypoint proximity alerts"),
-                    settings.proximityAlerts,
-                    { onSettingsChange(settings.copy(proximityAlerts = it)) },
-                    tr("Сигнал при приближении к точке (200 м)", "Alert when approaching a waypoint (200 m)"),
-                )
-                ChoiceRow(
-                    tr("Качество фото", "Photo quality"),
-                    listOf("high" to tr("Высокое", "High"), "medium" to "Среднее", "low" to "Низкое"),
-                    settings.photoQuality,
-                ) { onSettingsChange(settings.copy(photoQuality = it)) }
-                InfoRow(
-                    tr("База", "Base"),
-                    settings.basePoint?.let { formatCoord(it.lat, it.lon) } ?: tr("не задана", "not set"),
-                )
-                InfoRow(
-                    tr("Точка сбора", "Rally point"),
-                    settings.rallyPoint?.let { formatCoord(it.lat, it.lon) } ?: tr("не задана", "not set"),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
-                        val fix = recorder.lastFix
-                        if (fix != null) {
-                            onSettingsChange(settings.copy(rallyLat = fix.lat, rallyLon = fix.lon))
-                            message = rallySavedMessage
-                        } else {
-                            message = noFixMessage
-                        }
-                    }) { Text(tr("Rally здесь", "Rally here")) }
-                    OutlinedButton(onClick = {
-                        val fix = recorder.lastFix
-                        if (fix != null) {
-                            onSettingsChange(settings.copy(baseLat = fix.lat, baseLon = fix.lon))
-                            message = baseSavedMessage
-                        } else {
-                            message = noFixMessage
-                        }
-                    }) { Text(tr("База здесь", "Base here")) }
-                }
-                Spacer(Modifier.height(8.dp))
             }
 
             AccordionSection(
@@ -737,81 +779,58 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsGroupLabel(tr("Данные", "Data"))
             AccordionSection(
-                tr("Данные, хранилище и синхронизация", "Data, storage & sync"),
-                expanded("data"),
-                { setExpanded("data") },
-                icon = Icons.Filled.Storage,
-                iconTint = Color(0xFF546E7A),
-                summary = if (settings.autoScan) tr("автоскан", "auto-scan") else tr("вручную", "manual"),
+                tr("Точки и фото", "Waypoints & media"),
+                expanded("points"),
+                { setExpanded("points") },
+                icon = Icons.Filled.PhotoCamera,
+                iconTint = Color(0xFFEF6C00),
+                summary = settings.photoQuality,
             ) {
-                InfoRow(tr("Общее хранилище", "Shared storage"), PlatformFiles.navDataRoot())
-                InfoRow(tr("Структура", "Structure"), "maps/ · tracks/ · dem/ · routing/")
-                InfoRow(
-                    tr("Сегменты BRouter", "BRouter segments"),
-                    tr("$routeSegments файлов .rd5", "$routeSegments .rd5 files"),
+                SwitchRow(
+                    tr("Голосовые заметки", "Voice notes"),
+                    settings.voiceNotes,
+                    { onSettingsChange(settings.copy(voiceNotes = it)) },
                 )
-                DropdownRow(
-                    tr("Хранить копий", "Keep backups"),
-                    listOf("5" to "5", "10" to "10", "20" to "20", "50" to "50", "100" to "100"),
-                    settings.backupKeep.toString(),
-                ) { value ->
-                    onSettingsChange(settings.copy(backupKeep = value.toIntOrNull() ?: 20))
-                }
-                OutlinedButton(
-                    onClick = {
-                        if (backupBusy) return@OutlinedButton
-                        backupBusy = true
-                        scope.launch {
-                            val name = withContext(Dispatchers.IO) {
-                                val created = Backup.create()
-                                // Retention: keep only the newest backupKeep snapshots.
-                                if (created != null) pruneBackups(settings.backupKeep)
-                                created
-                            }
-                            backupBusy = false
-                            message = if (name != null) {
-                                backupCreatedPrefix + "backups/$name"
-                            } else {
-                                backupFailedMessage
-                            }
+                SwitchRow(
+                    tr("Предупреждать о точках", "Waypoint proximity alerts"),
+                    settings.proximityAlerts,
+                    { onSettingsChange(settings.copy(proximityAlerts = it)) },
+                    tr("Сигнал при приближении к точке (200 м)", "Alert when approaching a waypoint (200 m)"),
+                )
+                ChoiceRow(
+                    tr("Качество фото", "Photo quality"),
+                    listOf("high" to tr("Высокое", "High"), "medium" to "Среднее", "low" to "Низкое"),
+                    settings.photoQuality,
+                ) { onSettingsChange(settings.copy(photoQuality = it)) }
+                InfoRow(
+                    tr("База", "Base"),
+                    settings.basePoint?.let { formatCoord(it.lat, it.lon) } ?: tr("не задана", "not set"),
+                )
+                InfoRow(
+                    tr("Точка сбора", "Rally point"),
+                    settings.rallyPoint?.let { formatCoord(it.lat, it.lon) } ?: tr("не задана", "not set"),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        val fix = recorder.lastFix
+                        if (fix != null) {
+                            onSettingsChange(settings.copy(rallyLat = fix.lat, rallyLon = fix.lon))
+                            message = rallySavedMessage
+                        } else {
+                            message = noFixMessage
                         }
-                    },
-                    enabled = !backupBusy,
-                ) {
-                    Text(
-                        if (backupBusy) tr("Копирование…", "Copying…")
-                        else tr("Создать резервную копию", "Create backup"),
-                    )
-                }
-                OutlinedButton(
-                    onClick = {
-                        if (backupBusy) return@OutlinedButton
-                        if (recorder.recording) {
-                            message = restoreBlockedMessage
-                            return@OutlinedButton
+                    }) { Text(tr("Rally здесь", "Rally here")) }
+                    OutlinedButton(onClick = {
+                        val fix = recorder.lastFix
+                        if (fix != null) {
+                            onSettingsChange(settings.copy(baseLat = fix.lat, baseLon = fix.lon))
+                            message = baseSavedMessage
+                        } else {
+                            message = noFixMessage
                         }
-                        scope.launch {
-                            val entries = withContext(Dispatchers.IO) { Backup.list() }
-                            if (entries.isEmpty()) {
-                                message = restoreEmptyMessage
-                            } else {
-                                restoreChoices = entries
-                            }
-                        }
-                    },
-                    enabled = !backupBusy,
-                ) {
-                    Text(tr("Восстановить из копии", "Restore from backup"))
-                }
-                Spacer(Modifier.height(8.dp))
-                InfoRow(tr("Синхронизация", "Sync"), "USB · Wi-Fi · облако")
-                InfoRow(tr("Экспорт GPX", "GPX export"), "tracks/*.gpx")
-                OutlinedButton(onClick = pickGpx, enabled = !importing) {
-                    Text(if (importing) importingLabel else importButtonLabel)
-                }
-                OutlinedButton(onClick = pickRouteData) {
-                    Text(tr("Импорт BRouter (.rd5)", "Import BRouter (.rd5)"))
+                    }) { Text(tr("База здесь", "Base here")) }
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -1063,105 +1082,85 @@ fun SettingsScreen(
             }
 
             AccordionSection(
-                tr("XYZ-карты по ссылке", "XYZ map sources"),
-                expanded("xyz"),
-                { setExpanded("xyz") },
-                icon = Icons.Filled.Public,
-                iconTint = Color(0xFF00838F),
+                tr("Данные, хранилище и синхронизация", "Data, storage & sync"),
+                expanded("data"),
+                { setExpanded("data") },
+                icon = Icons.Filled.Storage,
+                iconTint = Color(0xFF546E7A),
+                summary = if (settings.autoScan) tr("автоскан", "auto-scan") else tr("вручную", "manual"),
             ) {
-                Text(
-                    tr(
-                        "XYZ — это онлайн-карта, заданная адресом-шаблоном вида " +
-                            "https://сервер/{z}/{x}/{y}.png. Добавьте название и адрес — карта " +
-                            "появится в меню «Слои» как базовая; просмотренные тайлы кэшируются " +
-                            "для офлайна. Подходит для любых серверов с таким шаблоном.",
-                        "XYZ means an online map defined by a template URL such as " +
-                            "https://server/{z}/{x}/{y}.png. Add a name and the address — the map " +
-                            "appears in Layers as a base map; viewed tiles are cached for offline use.",
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                InfoRow(tr("Общее хранилище", "Shared storage"), PlatformFiles.navDataRoot())
+                InfoRow(tr("Структура", "Structure"), "maps/ · tracks/ · dem/ · routing/")
+                InfoRow(
+                    tr("Сегменты BRouter", "BRouter segments"),
+                    tr("$routeSegments файлов .rd5", "$routeSegments .rd5 files"),
                 )
-                Spacer(Modifier.height(6.dp))
-                ru.azimut.app.core.map.UserXyz.sourcesFlow.collectAsState().value.forEach { src ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(src.name, style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                "${src.minZoom}–${src.maxZoom} · ${src.attribution.ifBlank { "—" }}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                        }
-                        TextButton(onClick = {
-                            ru.azimut.app.core.map.UserXyz.remove(src.id)
-                            onSettingsChange(
-                                if (settings.mapStyle == ru.azimut.app.core.map.UserXyz.PREFIX + src.id) {
-                                    settings.copy(mapLayer = "base", mapStyle = ru.azimut.app.core.map.MapStyles.DEFAULT_ID)
-                                } else settings
-                            )
-                        }) { Text(tr("Удалить", "Remove")) }
-                    }
+                DropdownRow(
+                    tr("Хранить копий", "Keep backups"),
+                    listOf("5" to "5", "10" to "10", "20" to "20", "50" to "50", "100" to "100"),
+                    settings.backupKeep.toString(),
+                ) { value ->
+                    onSettingsChange(settings.copy(backupKeep = value.toIntOrNull() ?: 20))
                 }
-                var xyzName by remember { mutableStateOf("") }
-                var xyzUrl by remember { mutableStateOf("") }
-                var xyzMaxZoom by remember { mutableStateOf("18") }
-                OutlinedTextField(
-                    value = xyzName,
-                    onValueChange = { xyzName = it },
-                    label = { Text(tr("Название", "Name")) },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = xyzUrl,
-                    onValueChange = { xyzUrl = it },
-                    label = { Text(tr("URL-шаблон {z}/{x}/{y}", "URL template {z}/{x}/{y}")) },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = xyzMaxZoom,
-                    onValueChange = { xyzMaxZoom = it },
-                    label = { Text(tr("Максимальный zoom", "Max zoom")) },
-                    singleLine = true,
-                )
-                OutlinedButton(onClick = {
-                    val url = xyzUrl.trim()
-                    val name = xyzName.trim()
-                    val maxZoom = xyzMaxZoom.toIntOrNull() ?: 18
-                    if (url.contains("{z}") && url.contains("{x}") && url.contains("{y}") && name.isNotBlank()) {
-                        ru.azimut.app.core.map.UserXyz.save(
-                            ru.azimut.app.core.map.XyzSource(
-                                id = "u${System.currentTimeMillis()}",
-                                name = name,
-                                urlTemplate = url,
-                                maxZoom = maxZoom,
-                                addedAt = System.currentTimeMillis(),
-                            ),
-                        )
-                        xyzName = ""; xyzUrl = ""; xyzMaxZoom = "18"
-                        message = msgXyzAdded
-                    } else {
-                        message = msgXyzInvalid
-                    }
-                }) { Text(tr("Добавить источник", "Add source")) }
-                Text(
-                    tr(
-                        "Лицензия источника — ваша ответственность: проверьте условия использования тайлов.",
-                        "Source licensing is your responsibility: check the tile usage terms.",
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            AccordionSection(
-                tr("Синхронизация NavData", "NavData sync"),
-                expanded("sync"),
-                { setExpanded("sync") },
-                icon = Icons.Filled.Sync,
-                iconTint = Color(0xFF0277BD),
-            ) {
+                OutlinedButton(
+                    onClick = {
+                        if (backupBusy) return@OutlinedButton
+                        backupBusy = true
+                        scope.launch {
+                            val name = withContext(Dispatchers.IO) {
+                                val created = Backup.create()
+                                // Retention: keep only the newest backupKeep snapshots.
+                                if (created != null) pruneBackups(settings.backupKeep)
+                                created
+                            }
+                            backupBusy = false
+                            message = if (name != null) {
+                                backupCreatedPrefix + "backups/$name"
+                            } else {
+                                backupFailedMessage
+                            }
+                        }
+                    },
+                    enabled = !backupBusy,
+                ) {
+                    Text(
+                        if (backupBusy) tr("Копирование…", "Copying…")
+                        else tr("Создать резервную копию", "Create backup"),
+                    )
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (backupBusy) return@OutlinedButton
+                        if (recorder.recording) {
+                            message = restoreBlockedMessage
+                            return@OutlinedButton
+                        }
+                        scope.launch {
+                            val entries = withContext(Dispatchers.IO) { Backup.list() }
+                            if (entries.isEmpty()) {
+                                message = restoreEmptyMessage
+                            } else {
+                                restoreChoices = entries
+                            }
+                        }
+                    },
+                    enabled = !backupBusy,
+                ) {
+                    Text(tr("Восстановить из копии", "Restore from backup"))
+                }
+                Spacer(Modifier.height(8.dp))
+                InfoRow(tr("Синхронизация", "Sync"), "USB · Wi-Fi · облако")
+                InfoRow(tr("Экспорт GPX", "GPX export"), "tracks/*.gpx")
+                OutlinedButton(onClick = pickGpx, enabled = !importing) {
+                    Text(if (importing) importingLabel else importButtonLabel)
+                }
+                OutlinedButton(onClick = pickRouteData) {
+                    Text(tr("Импорт BRouter (.rd5)", "Import BRouter (.rd5)"))
+                }
+                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Text(tr("Синхронизация NavData", "NavData sync"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
                 Text(
                     tr(
                         "Перед первой синхронизацией создаётся zip-бэкап. Файлы не удаляются молча: конфликтные копии получают суффикс.",
@@ -1404,6 +1403,7 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsGroupLabel(tr("Приложение", "App"))
             InterfaceSection(settings, onSettingsChange, { expanded(it) }, { setExpanded(it) })
 
             AboutSection({ expanded(it) }, { setExpanded(it) }, onOpenHelp, onOpenAbout)

@@ -9,6 +9,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Handler
+import android.os.Build
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,24 @@ actual object PlatformLocation {
         }
         val intent = Intent(context, TrackingService::class.java)
         ContextCompat.startForegroundService(context, intent)
+        requestBatteryExemptionOnce(context)
+    }
+
+    /** OEM battery managers kill/throttle the service and cut the track into pieces; ask once. */
+    private fun requestBatteryExemptionOnce(context: Context) {
+        runCatching {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            if (pm.isIgnoringBatteryOptimizations(context.packageName)) return
+            val prefs = context.getSharedPreferences("azimut_prefs", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("battery_asked", false)) return
+            prefs.edit().putBoolean("battery_asked", true).apply()
+            context.startActivity(
+                Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    android.net.Uri.parse("package:${context.packageName}"),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
     }
 
     actual fun stop() {
@@ -48,7 +67,7 @@ actual object PlatformLocation {
             LocationFix(
                 lat = location.latitude,
                 lon = location.longitude,
-                altitude = if (location.hasAltitude()) location.altitude else null,
+                altitude = location.mslOrNull(),
                 accuracy = if (location.hasAccuracy()) location.accuracy else null,
                 speed = if (location.hasSpeed()) location.speed else null,
                 bearing = if (location.hasBearing()) location.bearing else null,
@@ -72,6 +91,7 @@ actual object PlatformLocation {
             previewing = true
         }
         runCatching {
+            GeoidNmea.register(manager)
             if (gnssCallback == null) {
                 val callback = object : GnssStatus.Callback() {
                     override fun onSatelliteStatusChanged(status: GnssStatus) {
@@ -120,6 +140,7 @@ actual object PlatformLocation {
         if (!previewing && gnssCallback == null) return
         val manager = AndroidApp.context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         runCatching { manager.removeUpdates(previewListener) }
+        GeoidNmea.unregister(manager)
         gnssCallback?.let { callback ->
             runCatching { manager.unregisterGnssStatusCallback(callback) }
         }
@@ -127,4 +148,14 @@ actual object PlatformLocation {
         satelliteFlow.value = null
         previewing = false
     }
+}
+
+/**
+ * Height above sea level. Location.altitude is above the WGS84 ellipsoid (10–40 m off);
+ * Android 14+ exposes the MSL value. Older versions fall back to the ellipsoid height.
+ */
+fun Location.mslOrNull(): Double? = when {
+    Build.VERSION.SDK_INT >= 34 && hasMslAltitude() -> mslAltitudeMeters
+    hasAltitude() -> GeoidNmea.current()?.let { altitude - it } ?: altitude
+    else -> null
 }
