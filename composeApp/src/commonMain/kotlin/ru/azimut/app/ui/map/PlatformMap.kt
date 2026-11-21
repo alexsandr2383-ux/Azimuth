@@ -66,14 +66,15 @@ expect fun PlatformMap(
     gotoKey: Int = 0,
     /** Pre-rendered hillshade tiles from the DEM (settings.hillshade). */
     hillshadeTiles: List<ru.azimut.app.core.dem.HillshadeTile> = emptyList(),
-    /** Phone compass heading in degrees true — rotates the location arrow; null = unknown. */
+    /** Phone compass heading in degrees true - rotates the location arrow; null = unknown. */
     headingDegrees: Float? = null,
-    /** Mobile: "maps along the route" download — key increments per request, bounds are SW/NE corners. */
+    /** Mobile: "maps along the route" download - key increments per request, bounds are SW/NE corners. */
     corridorKey: Int = 0,
     corridorBounds: Pair<GeoPoint, GeoPoint>? = null,
     corridorMaxZoom: Int = 15,
     onCorridorProgress: (downloaded: Long, total: Long, complete: Boolean, error: Boolean) -> Unit = { _, _, _, _ -> },
     onDownloadCorridorDone: () -> Unit = {},
+    onWaypointTap: (Waypoint) -> Unit = {},
     onTap: (GeoPoint) -> Unit,
     onSecondaryTap: (GeoPoint, Offset) -> Unit,
 )

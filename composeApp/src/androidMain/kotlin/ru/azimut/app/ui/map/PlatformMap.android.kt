@@ -95,6 +95,7 @@ actual fun PlatformMap(
     corridorMaxZoom: Int,
     onCorridorProgress: (Long, Long, Boolean, Boolean) -> Unit,
     onDownloadCorridorDone: () -> Unit,
+    onWaypointTap: (Waypoint) -> Unit,
     onTap: (GeoPoint) -> Unit,
     onSecondaryTap: (GeoPoint, Offset) -> Unit,
 ) {
@@ -102,6 +103,8 @@ actual fun PlatformMap(
     val mapView = remember { MapView(context).apply { onCreate(null) } }
     val onTapState by rememberUpdatedState(onTap)
     val onSecondaryTapState by rememberUpdatedState(onSecondaryTap)
+    val onWaypointTapState by rememberUpdatedState(onWaypointTap)
+    val waypointsState by rememberUpdatedState(waypoints)
     val onCameraBearingState by rememberUpdatedState(onCameraBearingChange)
     val onViewportChangeState by rememberUpdatedState(onViewportChange)
     val currentLocationState by rememberUpdatedState(currentLocation)
@@ -162,7 +165,12 @@ actual fun PlatformMap(
                         }
                     }
                     mapLibreMap.addOnMapClickListener { latLng ->
-                        onTapState(GeoPoint(latLng.latitude, latLng.longitude))
+                        val screen = mapLibreMap.projection.toScreenLocation(latLng)
+                        val features = mapLibreMap.queryRenderedFeatures(screen, "waypoints-layer")
+                        val wpId = features.firstOrNull()?.getStringProperty("id")
+                        val wp = wpId?.let { id -> waypointsState.firstOrNull { it.id == id } }
+                        if (wp != null) onWaypointTapState(wp)
+                        else onTapState(GeoPoint(latLng.latitude, latLng.longitude))
                         true
                     }
                     mapLibreMap.addOnMapLongClickListener { latLng ->
@@ -289,7 +297,10 @@ actual fun PlatformMap(
         val features = withContext(Dispatchers.Default) {
             waypoints.map { waypoint ->
                 Feature.fromGeometry(Point.fromLngLat(waypoint.lon, waypoint.lat)).apply {
+                    addStringProperty("id", waypoint.id)
                     addStringProperty("name", waypoint.name)
+                    addStringProperty("type", waypoint.poiType)
+                    addStringProperty("icon", "poi-" + waypoint.poiType)
                 }
             }
         }
@@ -718,13 +729,17 @@ private fun ensureSources(style: Style) {
     }
     if (style.getSource("waypoints-src") == null) {
         style.addSource(GeoJsonSource("waypoints-src", FeatureCollection.fromFeatures(emptyArray())))
+        ensurePoiIcons(style)
         style.addLayer(
-            CircleLayer("waypoints-layer", "waypoints-src").withProperties(
-                PropertyFactory.circleColor("#2E7D32"),
-                PropertyFactory.circleRadius(6f),
-                PropertyFactory.circleStrokeWidth(2f),
-                PropertyFactory.circleStrokeColor("#FFFFFF"),
-            )
+            org.maplibre.android.style.layers.SymbolLayer("waypoints-layer", "waypoints-src").withProperties(
+                PropertyFactory.iconImage(Expression.get("icon")),
+                PropertyFactory.iconSize(
+                    Expression.interpolate(Expression.linear(), Expression.zoom(),
+                        Expression.stop(10f, 0.72f), Expression.stop(13f, 1.0f), Expression.stop(16f, 1.25f))
+                ),
+                PropertyFactory.iconAllowOverlap(false),
+                PropertyFactory.iconIgnorePlacement(false),
+            ).apply { minZoom = 10f }
         )
     }
     if (style.getSource("location-src") == null) {
@@ -749,6 +764,94 @@ private fun ensureSources(style: Style) {
  * tip = north at iconRotate 0. Drawn in code — no per-density assets. MAP rotation
  * alignment keeps the world azimuth correct when the map itself is rotated (heading-up).
  */
+private fun ensurePoiIcons(style: Style) {
+    for (type in ru.azimut.app.core.model.PoiTypes.ALL) {
+        val id = "poi-$type"
+        if (style.getImage(id) == null) style.addImage(id, poiIconBitmap(type))
+    }
+}
+
+internal fun poiIconBitmap(type: String): android.graphics.Bitmap {
+    val size = 72
+    val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(bmp)
+    val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    val cx = size / 2f
+    val cy = size / 2f
+    val r = 26f
+    val color = android.graphics.Color.parseColor(ru.azimut.app.ui.components.poiTypeColorHex(type))
+    // flat OsmAnd-like circle, but colored by type
+    p.style = android.graphics.Paint.Style.FILL
+    p.color = android.graphics.Color.argb(45, 0, 0, 0); c.drawCircle(cx + 1.5f, cy + 2f, r + 2f, p)
+    p.color = android.graphics.Color.WHITE; c.drawCircle(cx, cy, r + 3f, p)
+    p.color = color; c.drawCircle(cx, cy, r, p)
+
+    p.color = android.graphics.Color.WHITE
+    p.style = android.graphics.Paint.Style.STROKE
+    p.strokeWidth = 4.2f
+    p.strokeCap = android.graphics.Paint.Cap.ROUND
+    p.strokeJoin = android.graphics.Paint.Join.ROUND
+    val s = 10f
+    when (type) {
+        ru.azimut.app.core.model.PoiTypes.WATER -> {
+            val d = android.graphics.Path()
+            d.moveTo(cx, cy - s); d.quadTo(cx + s, cy + s * 0.35f, cx, cy + s); d.quadTo(cx - s, cy + s * 0.35f, cx, cy - s)
+            p.style = android.graphics.Paint.Style.FILL; c.drawPath(d, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.SHELTER -> {
+            c.drawPath(android.graphics.Path().apply { moveTo(cx - s, cy); lineTo(cx, cy - s); lineTo(cx + s, cy) }, p)
+            p.style = android.graphics.Paint.Style.FILL; c.drawRect(cx - s * 0.75f, cy, cx + s * 0.75f, cy + s * 0.85f, p)
+            p.color = color; c.drawRect(cx - s * 0.22f, cy + s * 0.25f, cx + s * 0.22f, cy + s * 0.85f, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.CAMP -> {
+            c.drawPath(android.graphics.Path().apply { moveTo(cx - s, cy + s * 0.8f); lineTo(cx, cy - s); lineTo(cx + s, cy + s * 0.8f); close() }, p)
+            c.drawLine(cx, cy - s, cx, cy + s * 0.8f, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.FOOD -> {
+            c.drawLine(cx - s * 0.45f, cy - s, cx - s * 0.45f, cy + s, p)
+            c.drawLine(cx - s * 0.75f, cy - s, cx - s * 0.75f, cy - s * 0.1f, p)
+            c.drawLine(cx - s * 0.15f, cy - s, cx - s * 0.15f, cy - s * 0.1f, p)
+            c.drawArc(cx - s * 0.75f, cy - s * 0.45f, cx - s * 0.15f, cy + s * 0.15f, 0f, 180f, false, p)
+            c.drawLine(cx + s * 0.55f, cy - s, cx + s * 0.55f, cy + s, p)
+            c.drawOval(cx + s * 0.25f, cy - s, cx + s * 0.85f, cy - s * 0.1f, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.FUEL -> {
+            c.drawRoundRect(cx - s * 0.7f, cy - s, cx + s * 0.2f, cy + s, 2.5f, 2.5f, p)
+            c.drawLine(cx + s * 0.2f, cy - s * 0.3f, cx + s * 0.7f, cy + s * 0.15f, p)
+            c.drawLine(cx + s * 0.7f, cy + s * 0.15f, cx + s * 0.7f, cy + s * 0.85f, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.MEDICAL -> {
+            p.style = android.graphics.Paint.Style.FILL
+            c.drawRect(cx - s * 0.28f, cy - s, cx + s * 0.28f, cy + s, p)
+            c.drawRect(cx - s, cy - s * 0.28f, cx + s, cy + s * 0.28f, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.SIGHT -> {
+            val d = android.graphics.Path()
+            for (i in 0 until 10) {
+                val a = Math.toRadians((i * 36 - 90).toDouble())
+                val rad = if (i % 2 == 0) s else s * 0.42f
+                val x = cx + (rad * kotlin.math.cos(a)).toFloat()
+                val y = cy + (rad * kotlin.math.sin(a)).toFloat()
+                if (i == 0) d.moveTo(x, y) else d.lineTo(x, y)
+            }
+            d.close(); p.style = android.graphics.Paint.Style.FILL; c.drawPath(d, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.TRANSPORT -> {
+            c.drawRoundRect(cx - s, cy - s * 0.1f, cx + s, cy + s * 0.8f, 3f, 3f, p)
+            c.drawLine(cx - s * 0.7f, cy - s * 0.1f, cx - s * 0.35f, cy - s * 0.8f, p)
+            c.drawLine(cx + s * 0.7f, cy - s * 0.1f, cx + s * 0.35f, cy - s * 0.8f, p)
+            c.drawLine(cx - s * 0.35f, cy - s * 0.8f, cx + s * 0.35f, cy - s * 0.8f, p)
+        }
+        ru.azimut.app.core.model.PoiTypes.OWN -> {
+            c.drawLine(cx - s * 0.55f, cy - s, cx - s * 0.55f, cy + s, p)
+            val d = android.graphics.Path(); d.moveTo(cx - s * 0.55f, cy - s * 0.85f); d.lineTo(cx + s * 0.75f, cy - s * 0.25f); d.lineTo(cx - s * 0.55f, cy + s * 0.25f); d.close()
+            p.style = android.graphics.Paint.Style.FILL; c.drawPath(d, p)
+        }
+        else -> { p.style = android.graphics.Paint.Style.FILL; c.drawCircle(cx, cy, s * 0.45f, p) }
+    }
+    return bmp
+}
+
 internal fun locationArrowBitmap(): android.graphics.Bitmap {
     val size = 96
     val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)

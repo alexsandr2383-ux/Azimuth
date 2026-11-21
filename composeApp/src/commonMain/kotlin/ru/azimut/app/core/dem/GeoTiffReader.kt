@@ -51,14 +51,19 @@ object GeoTiffReader {
         if (tags[258]?.count != 1L) throw BadFormat("multi-band TIFF is not supported")
         if (bitsPerSample !in intArrayOf(16, 32)) throw BadFormat("unsupported bit depth $bitsPerSample")
         val compression = tags[259]?.firstInt(bytes, le) ?: 1
-        if (compression != 1) throw BadFormat("compressed TIFF ($compression) is not supported")
+        if (compression !in intArrayOf(1, 8, 32946)) {
+            throw BadFormat("unsupported TIFF compression $compression (supported: uncompressed/deflate)")
+        }
         // SampleFormat: 1=unsigned, 2=signed, 3=float. Default 1 per spec.
         val sampleFormat = tags[339]?.firstInt(bytes, le) ?: 1
         if (bitsPerSample == 16 && sampleFormat == 3) throw BadFormat("float16 is not supported")
         if (bitsPerSample == 32 && sampleFormat == 4) throw BadFormat("complex float is not supported")
+        val predictor = tags[317]?.firstInt(bytes, le) ?: 1
+        if (predictor !in intArrayOf(1, 2, 3)) throw BadFormat("unsupported TIFF predictor $predictor")
 
         val tileWidth = tags[322]?.firstInt(bytes, le) ?: 0
         val tileHeight = tags[323]?.firstInt(bytes, le) ?: 0
+        val rowsPerStrip = tags[278]?.firstInt(bytes, le) ?: height
         val stripOffsets = tags[273]?.allInts(bytes, le)
         val stripCounts = tags[279]?.allInts(bytes, le)
         val tileOffsets = tags[324]?.allInts(bytes, le)
@@ -93,50 +98,47 @@ object GeoTiffReader {
 
         if (tileWidth > 0 && tileHeight > 0 && tileOffsets != null && tileCounts != null) {
             val tilesAcross = (width + tileWidth - 1) / tileWidth
-            val tileBytes = tileHeight.toLong() * tileWidth.toLong() * bytesPerSample
             for (t in tileOffsets.indices) {
-                // Corrupt offsets must fail as BadFormat, not as an out-of-bounds read.
-                if (tileOffsets[t] < 0 || tileOffsets[t] + tileBytes > bytes.size) {
-                    throw BadFormat("tile offsets out of range")
-                }
                 val tRow = t / tilesAcross
                 val tCol = t % tilesAcross
-                var pos = tileOffsets[t].toInt()
                 val baseRow = tRow * tileHeight
                 val baseCol = tCol * tileWidth
+                val block = decodeBlock(bytes, tileOffsets[t], tileCounts[t], compression)
+                val expected = tileWidth.toLong() * tileHeight.toLong() * bytesPerSample
+                val blockBytes = if (block.size.toLong() >= expected) block else throw BadFormat("tile ${t} is shorter than expected")
+                undoPredictor(blockBytes, tileWidth, tileHeight, bytesPerSample, predictor)
+                var pos = 0
                 for (r in 0 until tileHeight) {
                     val row = baseRow + r
-                    if (row >= height) break
+                    if (row >= height) { pos += tileWidth * bytesPerSample; continue }
                     for (c in 0 until tileWidth) {
                         val col = baseCol + c
-                        if (col >= width) {
-                            // Tiles are padded to tileWidth; skip padding without reading past.
-                            val remain = tileWidth - c
-                            pos += remain * bytesPerSample
-                            break
-                        }
-                        data[row * width + col] = sample(bytes, pos, bitsPerSample, sampleFormat, le)
+                        if (col < width) data[row * width + col] = sample(blockBytes, pos, bitsPerSample, sampleFormat, le)
                         pos += bytesPerSample
                     }
                 }
             }
         } else if (stripOffsets != null && stripCounts != null) {
-            var writtenSamples = 0
+            var row = 0
             for (s in stripOffsets.indices) {
-                // Corrupt offsets/counts must fail as BadFormat, not as an out-of-bounds read.
-                if (stripOffsets[s] < 0 || stripCounts[s] < 0) throw BadFormat("strip offsets out of range")
-                val filePos = stripOffsets[s].toInt()
-                var fileEnd = filePos + stripCounts[s].toInt()
-                if (fileEnd > bytes.size) fileEnd = bytes.size
-                var cursor = filePos
-                while (cursor + bytesPerSample <= fileEnd && writtenSamples < height * width) {
-                    data[writtenSamples] = sample(bytes, cursor, bitsPerSample, sampleFormat, le)
-                    writtenSamples++
-                    cursor += bytesPerSample
+                val stripRows = minOf(rowsPerStrip, height - row)
+                if (stripRows <= 0) break
+                val block = decodeBlock(bytes, stripOffsets[s], stripCounts[s], compression)
+                val expected = width.toLong() * stripRows.toLong() * bytesPerSample
+                if (block.size.toLong() < expected) throw BadFormat("strip ${s} is shorter than expected")
+                undoPredictor(block, width, stripRows, bytesPerSample, predictor)
+                var pos = 0
+                for (r in 0 until stripRows) {
+                    val dstRow = row + r
+                    for (c in 0 until width) {
+                        data[dstRow * width + c] = sample(block, pos, bitsPerSample, sampleFormat, le)
+                        pos += bytesPerSample
+                    }
                 }
-                if (writtenSamples >= height * width) break
+                row += stripRows
+                if (row >= height) break
             }
-            if (writtenSamples < height * width) throw BadFormat("strips are shorter than the image")
+            if (row < height) throw BadFormat("strips are shorter than the image")
         } else {
             throw BadFormat("no strip or tile offsets")
         }
@@ -169,6 +171,73 @@ object GeoTiffReader {
             i += 4
         }
         return null
+    }
+
+    private fun decodeBlock(bytes: ByteArray, offset: Int, count: Int, compression: Int): ByteArray {
+        if (offset < 0 || count < 0 || offset + count > bytes.size) throw BadFormat("block out of range")
+        val raw = bytes.copyOfRange(offset, offset + count)
+        return when (compression) {
+            1 -> raw
+            8, 32946 -> inflateDeflate(raw)
+            else -> throw BadFormat("unsupported TIFF compression $compression")
+        }
+    }
+
+    private fun inflateDeflate(raw: ByteArray): ByteArray {
+        val inflater = java.util.zip.Inflater()
+        return try {
+            inflater.setInput(raw)
+            val out = java.io.ByteArrayOutputStream(raw.size * 2)
+            val buf = ByteArray(64 * 1024)
+            while (!inflater.finished()) {
+                val n = inflater.inflate(buf)
+                if (n > 0) {
+                    out.write(buf, 0, n)
+                } else if (inflater.needsInput()) {
+                    throw BadFormat("truncated deflate stream")
+                } else if (inflater.needsDictionary()) {
+                    throw BadFormat("deflate dictionary not supported")
+                }
+            }
+            out.toByteArray()
+        } catch (e: BadFormat) {
+            throw e
+        } catch (e: Exception) {
+            throw BadFormat("deflate decode failed: ${e.message}")
+        } finally {
+            inflater.end()
+        }
+    }
+
+    /** Undo TIFF predictors (2: horizontal differencing, 3: floating-point predictor). */
+    private fun undoPredictor(buf: ByteArray, width: Int, height: Int, bps: Int, predictor: Int) {
+        if (predictor == 1) return
+        val rowBytes = width * bps
+        if (predictor == 2) {
+            for (y in 0 until height) {
+                val base = y * rowBytes
+                for (i in bps until rowBytes) {
+                    buf[base + i] = ((buf[base + i].toInt() and 0xFF) + (buf[base + i - bps].toInt() and 0xFF)).toByte()
+                }
+            }
+            return
+        }
+        if (predictor == 3) {
+            for (y in 0 until height) {
+                val base = y * rowBytes
+                for (i in bps until rowBytes) {
+                    buf[base + i] = ((buf[base + i].toInt() and 0xFF) + (buf[base + i - bps].toInt() and 0xFF)).toByte()
+                }
+                val row = buf.copyOfRange(base, base + rowBytes)
+                for (i in 0 until width) {
+                    for (j in 0 until bps) {
+                        buf[base + i * bps + j] = row[j * width + i]
+                    }
+                }
+            }
+            return
+        }
+        throw BadFormat("unsupported TIFF predictor $predictor")
     }
 
     private fun sample(bytes: ByteArray, pos: Int, bits: Int, format: Int, le: Boolean): Short {

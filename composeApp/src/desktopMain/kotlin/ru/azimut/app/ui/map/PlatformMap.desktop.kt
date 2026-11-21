@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,6 +41,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -151,6 +153,7 @@ actual fun PlatformMap(
     corridorMaxZoom: Int,
     onCorridorProgress: (Long, Long, Boolean, Boolean) -> Unit,
     onDownloadCorridorDone: () -> Unit,
+    onWaypointTap: (Waypoint) -> Unit,
     onTap: (GeoPoint) -> Unit,
     onSecondaryTap: (GeoPoint, Offset) -> Unit,
 ) {
@@ -198,6 +201,10 @@ actual fun PlatformMap(
     var secondaryTapAt by remember { mutableStateOf(0L) }
     val onTapState by rememberUpdatedState(onTap)
     val onSecondaryTapState by rememberUpdatedState(onSecondaryTap)
+    val onWaypointTapState by rememberUpdatedState(onWaypointTap)
+    val waypointsState by rememberUpdatedState(waypoints)
+    var hoveredWaypoint by remember { mutableStateOf<Waypoint?>(null) }
+    var hoverPos by remember { mutableStateOf(Offset.Zero) }
     // Hillshade pixels -> ImageBitmap once per tile.
     val shadeBitmaps = remember(hillshadeTiles) {
         hillshadeTiles.associate { tile ->
@@ -466,16 +473,28 @@ actual fun PlatformMap(
                         onTap = { offset ->
                             val primaryTap = System.currentTimeMillis() - secondaryTapAt >= 350
                             if (primaryTap && viewport.width > 0 && viewport.height > 0) {
-                                onTapState(state.screenToGeo(offset.x, offset.y, viewport.width, viewport.height))
+                                val hit = findWaypointAtScreen(waypointsState, state, offset.x, offset.y, viewport.width, viewport.height)
+                                if (hit != null) onWaypointTapState(hit)
+                                else onTapState(state.screenToGeo(offset.x, offset.y, viewport.width, viewport.height))
                             }
                         },
                         onDoubleTap = { state.zoomBy(1.0) },
                     )
                 }
-                .pointerInput(Unit) {
+                .pointerInput(waypoints) {
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Move) {
+                                val pos = event.changes.firstOrNull()?.position
+                                if (pos != null && viewport.width > 0 && viewport.height > 0) {
+                                    hoverPos = pos
+                                    hoveredWaypoint = findWaypointAtScreen(
+                                        waypointsState, state, pos.x, pos.y, viewport.width, viewport.height,
+                                    )
+                                }
+                            }
+                            if (event.type == PointerEventType.Exit) hoveredWaypoint = null
                             val secondary = event.type == PointerEventType.Press && event.buttons.isSecondaryPressed
                             if (secondary) {
                                 val change = event.changes.firstOrNull() ?: continue
@@ -791,9 +810,7 @@ actual fun PlatformMap(
                 )
             }
 
-            if (showPois) {
-                // Only project and draw what is on screen; when a 10k-POI import is fully
-                // zoomed out, sample the visible set so a frame does not draw 10k circles.
+            if (showPois && state.zoom >= 10.0) {
                 val margin = 12.dp.toPx()
                 fun onScreen(waypoint: Waypoint): Offset? {
                     val center = project(waypoint.lat, waypoint.lon)
@@ -803,20 +820,14 @@ actual fun PlatformMap(
                     }
                 }
                 var visible = 0
-                for (waypoint in waypoints) {
-                    if (onScreen(waypoint) != null) visible++
-                }
-                val stride = if (visible > MAX_POIS_ON_SCREEN) {
-                    (visible + MAX_POIS_ON_SCREEN - 1) / MAX_POIS_ON_SCREEN
-                } else {
-                    1
-                }
+                for (waypoint in waypoints) { if (onScreen(waypoint) != null) visible++ }
+                val stride = if (visible > MAX_POIS_ON_SCREEN) (visible + MAX_POIS_ON_SCREEN - 1) / MAX_POIS_ON_SCREEN else 1
+                val iconScale = ((state.zoom - 10.0) / 7.0).coerceIn(0.8, 1.2).toFloat()
                 var seen = 0
                 for (waypoint in waypoints) {
                     val center = onScreen(waypoint) ?: continue
                     if (seen++ % stride != 0) continue
-                    drawCircle(Color.White, radius = 7.dp.toPx(), center = center)
-                    drawCircle(Color(0xFF2E7D32), radius = 5.5.dp.toPx(), center = center)
+                    drawPoiIcon(center, waypoint.poiType, iconScale)
                 }
             }
 
@@ -831,6 +842,14 @@ actual fun PlatformMap(
                     style = Stroke(width = 1.dp.toPx()),
                 )
             }
+        }
+
+        hoveredWaypoint?.let { wp ->
+            WaypointHoverCard(
+                waypoint = wp,
+                offset = hoverPos,
+                modifier = Modifier.align(Alignment.TopStart),
+            )
         }
 
         val runningDownload = downloadState
@@ -1389,6 +1408,52 @@ private fun viewportTileRanges(
     return (minX..maxX) to (minY..maxY)
 }
 
+@Composable
+private fun WaypointHoverCard(waypoint: Waypoint, offset: Offset, modifier: Modifier = Modifier) {
+    val lang = LocalLang.current
+    val photo = waypoint.photos.firstOrNull()
+    val bitmap by androidx.compose.runtime.produceState<ImageBitmap?>(null, photo) {
+        value = photo?.let { withContext(Dispatchers.Default) { ru.azimut.app.ui.components.loadPhoto(it, 320) } }
+    }
+    Box(modifier.fillMaxSize()) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val xDp = with(density) { offset.x.toDp() } + 14.dp
+        val yDp = with(density) { offset.y.toDp() } + 14.dp
+        Surface(
+            modifier = Modifier.padding(start = xDp, top = yDp).width(280.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = Color(0xF21A1A1A),
+            contentColor = Color.White,
+            tonalElevation = 4.dp,
+            shadowElevation = 8.dp,
+        ) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    waypoint.name.ifBlank { ru.azimut.app.ui.components.poiTypeShortLabel(waypoint.poiType, lang) },
+                    fontSize = 14.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                )
+                Text(
+                    ru.azimut.app.ui.components.poiTypeShortLabel(waypoint.poiType, lang),
+                    fontSize = 11.sp,
+                    color = Color(0xFFB0BEC5),
+                )
+                if (waypoint.description.isNotBlank()) {
+                    Text(waypoint.description.take(180), fontSize = 12.sp, color = Color(0xFFE0E0E0))
+                }
+                bitmap?.let {
+                    androidx.compose.foundation.Image(
+                        bitmap = it,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(8.dp)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                }
+            }
+        }
+    }
+}
+
 internal fun formatDownloadSize(tiles: Long): String {
     val mb = tiles * 22 / 1024
     return if (mb >= 1024) {
@@ -1636,6 +1701,88 @@ internal val BG_TRACK_COLORS = listOf(
 )
 
 /** ARGB pixels of a shade tile -> Compose ImageBitmap. */
+private fun parseHexColor(hex: String): Color {
+    val rgb = hex.removePrefix("#").toLong(16).toInt()
+    return Color(0xFF000000.toInt() or rgb)
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPoiIcon(center: Offset, type: String, scale: Float) {
+    val r = 12.dp.toPx() * scale
+    val color = parseHexColor(ru.azimut.app.ui.components.poiTypeColorHex(type))
+    val white = Color.White
+    drawCircle(Color(0x22000000), radius = r + 1.dp.toPx(), center = center.copy(x = center.x + 1f, y = center.y + 1.5f))
+    drawCircle(white, radius = r + 2.dp.toPx() * scale, center = center)
+    drawCircle(color, radius = r, center = center)
+    val s = r * 0.46f
+    val st = Stroke(width = 2.dp.toPx() * scale, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    when (type) {
+        ru.azimut.app.core.model.PoiTypes.WATER -> {
+            val d = Path().apply { moveTo(center.x, center.y - s); quadraticTo(center.x + s, center.y + s*0.35f, center.x, center.y + s); quadraticTo(center.x - s, center.y + s*0.35f, center.x, center.y - s) }
+            drawPath(d, white)
+        }
+        ru.azimut.app.core.model.PoiTypes.SHELTER -> {
+            drawPath(Path().apply { moveTo(center.x - s, center.y); lineTo(center.x, center.y - s); lineTo(center.x + s, center.y) }, white, style = st)
+            drawRect(white, topLeft = Offset(center.x - s * 0.75f, center.y), size = androidx.compose.ui.geometry.Size(s * 1.5f, s * 0.85f))
+        }
+        ru.azimut.app.core.model.PoiTypes.CAMP -> {
+            drawPath(Path().apply { moveTo(center.x - s, center.y + s*0.8f); lineTo(center.x, center.y - s); lineTo(center.x + s, center.y + s*0.8f); close() }, white, style = st)
+        }
+        ru.azimut.app.core.model.PoiTypes.FOOD -> {
+            drawLine(white, Offset(center.x - s*0.45f, center.y - s), Offset(center.x - s*0.45f, center.y + s), strokeWidth = 2.dp.toPx()*scale)
+            drawOval(white, topLeft = Offset(center.x + s*0.15f, center.y - s), size = androidx.compose.ui.geometry.Size(s*0.65f, s*0.9f), style = st)
+            drawLine(white, Offset(center.x + s*0.47f, center.y - s*0.1f), Offset(center.x + s*0.47f, center.y + s), strokeWidth = 2.dp.toPx()*scale)
+        }
+        ru.azimut.app.core.model.PoiTypes.FUEL -> {
+            drawRoundRect(white, topLeft = Offset(center.x - s*0.7f, center.y - s), size = androidx.compose.ui.geometry.Size(s*0.95f, s*1.9f), cornerRadius = CornerRadius(2f,2f), style = st)
+            drawLine(white, Offset(center.x + s*0.25f, center.y - s*0.2f), Offset(center.x + s*0.7f, center.y + s*0.2f), strokeWidth = 2.dp.toPx()*scale)
+        }
+        ru.azimut.app.core.model.PoiTypes.MEDICAL -> {
+            drawRect(white, topLeft = Offset(center.x - s*0.25f, center.y - s), size = androidx.compose.ui.geometry.Size(s*0.5f, s*2f))
+            drawRect(white, topLeft = Offset(center.x - s, center.y - s*0.25f), size = androidx.compose.ui.geometry.Size(s*2f, s*0.5f))
+        }
+        ru.azimut.app.core.model.PoiTypes.SIGHT -> {
+            val d = Path(); for (i in 0 until 10) { val a = Math.toRadians((i * 36 - 90).toDouble()); val rad = if (i % 2 == 0) s else s*0.42f; val x = center.x + (rad * kotlin.math.cos(a)).toFloat(); val y = center.y + (rad * kotlin.math.sin(a)).toFloat(); if (i==0) d.moveTo(x,y) else d.lineTo(x,y) }; d.close(); drawPath(d, white)
+        }
+        ru.azimut.app.core.model.PoiTypes.TRANSPORT -> {
+            drawRoundRect(white, topLeft = Offset(center.x - s, center.y - s*0.1f), size = androidx.compose.ui.geometry.Size(s*2f, s*1.0f), cornerRadius = CornerRadius(2f,2f), style = st)
+            drawLine(white, Offset(center.x - s*0.65f, center.y - s*0.1f), Offset(center.x - s*0.35f, center.y - s*0.75f), strokeWidth = 2.dp.toPx()*scale)
+            drawLine(white, Offset(center.x + s*0.65f, center.y - s*0.1f), Offset(center.x + s*0.35f, center.y - s*0.75f), strokeWidth = 2.dp.toPx()*scale)
+            drawLine(white, Offset(center.x - s*0.35f, center.y - s*0.75f), Offset(center.x + s*0.35f, center.y - s*0.75f), strokeWidth = 2.dp.toPx()*scale)
+        }
+        ru.azimut.app.core.model.PoiTypes.OWN -> {
+            drawLine(white, Offset(center.x - s*0.55f, center.y - s), Offset(center.x - s*0.55f, center.y + s), strokeWidth = 2.dp.toPx()*scale)
+            drawPath(Path().apply { moveTo(center.x - s*0.55f, center.y - s*0.85f); lineTo(center.x + s*0.75f, center.y - s*0.25f); lineTo(center.x - s*0.55f, center.y + s*0.25f); close() }, white)
+        }
+        else -> drawCircle(white, radius = s * 0.45f, center = center)
+    }
+}
+
+private fun findWaypointAtScreen(
+    waypoints: List<Waypoint>,
+    state: SlippyMapState,
+    x: Float,
+    y: Float,
+    width: Int,
+    height: Int,
+    radiusPx: Float = 22f,
+): Waypoint? {
+    if (width <= 0 || height <= 0) return null
+    var best: Waypoint? = null
+    var bestDist = radiusPx * radiusPx
+    for (wp in waypoints) {
+        val centerX = width / 2f
+        val centerY = height / 2f
+        val wx = lonToWorldX(wp.lon, state.zoom) - (lonToWorldX(state.centerLon, state.zoom) - width / 2.0)
+        val wy = latToWorldY(wp.lat, state.zoom) - (latToWorldY(state.centerLat, state.zoom) - height / 2.0)
+        val p = Offset(centerX, centerY) + state.toScreen(wx - width / 2.0, wy - height / 2.0)
+        val dx = p.x - x
+        val dy = p.y - y
+        val d2 = dx * dx + dy * dy
+        if (d2 <= bestDist) { bestDist = d2; best = wp }
+    }
+    return best
+}
+
 private fun bufferedShadeBitmap(tile: ru.azimut.app.core.dem.HillshadeTile): ImageBitmap {
     val image = java.awt.image.BufferedImage(
         tile.width, tile.height, java.awt.image.BufferedImage.TYPE_INT_ARGB,

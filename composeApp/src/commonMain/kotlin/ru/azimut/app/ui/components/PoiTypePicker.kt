@@ -32,6 +32,48 @@ fun poiTypeLabel(type: String): String = when (type) {
     else -> tr("Прочее", "Other")
 }
 
+fun poiTypeShortLabel(type: String, lang: String): String {
+    val ru = lang != "en"
+    return when (type) {
+        PoiTypes.WATER -> if (ru) "Вода" else "Water"
+        PoiTypes.SHELTER -> if (ru) "Приют" else "Shelter"
+        PoiTypes.CAMP -> if (ru) "Кемпинг" else "Camp"
+        PoiTypes.FOOD -> if (ru) "Еда" else "Food"
+        PoiTypes.FUEL -> if (ru) "Топливо" else "Fuel"
+        PoiTypes.MEDICAL -> if (ru) "Мед" else "Med"
+        PoiTypes.SIGHT -> if (ru) "Место" else "Sight"
+        PoiTypes.TRANSPORT -> if (ru) "Транс" else "Trans"
+        PoiTypes.OWN -> if (ru) "Моя" else "My"
+        else -> if (ru) "Точка" else "Point"
+    }
+}
+
+fun poiTypeColorHex(type: String): String = when (type) {
+    PoiTypes.WATER -> "#1E88E5"
+    PoiTypes.SHELTER -> "#6D4C41"
+    PoiTypes.CAMP -> "#43A047"
+    PoiTypes.FOOD -> "#FB8C00"
+    PoiTypes.FUEL -> "#FDD835"
+    PoiTypes.MEDICAL -> "#E53935"
+    PoiTypes.SIGHT -> "#8E24AA"
+    PoiTypes.TRANSPORT -> "#546E7A"
+    PoiTypes.OWN -> "#2E7D32"
+    else -> "#00897B"
+}
+
+fun poiTypeGlyph(type: String): String = when (type) {
+    PoiTypes.WATER -> "W"
+    PoiTypes.SHELTER -> "H"
+    PoiTypes.CAMP -> "C"
+    PoiTypes.FOOD -> "F"
+    PoiTypes.FUEL -> "G"
+    PoiTypes.MEDICAL -> "+"
+    PoiTypes.SIGHT -> "S"
+    PoiTypes.TRANSPORT -> "T"
+    PoiTypes.OWN -> "*"
+    else -> "P"
+}
+
 @Composable
 fun PoiTypePicker(
     selected: String,

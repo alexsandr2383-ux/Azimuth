@@ -139,6 +139,7 @@ import ru.azimut.app.core.routing.RouteResult
 import ru.azimut.app.core.routing.SegmentDownloader
 import ru.azimut.app.ui.components.HoverTooltip
 import ru.azimut.app.ui.components.PhotoEditor
+import ru.azimut.app.ui.components.PhotoStrip
 import ru.azimut.app.ui.components.PlatformBackHandler
 import ru.azimut.app.ui.components.PoiTypePicker
 import ru.azimut.app.ui.components.VoiceEditor
@@ -238,6 +239,43 @@ internal fun AddPointDialog(
         },
         dismissButton = {
             TextButton(onClick = cancel) { Text(tr("Отмена", "Cancel")) }
+        },
+    )
+}
+
+@Composable
+internal fun WaypointInfoDialog(
+    waypoint: Waypoint,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+    onNavigate: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(waypoint.name.ifBlank { poiTypeLabel(waypoint.poiType) }) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(poiTypeLabel(waypoint.poiType), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(formatCoord(waypoint.lat, waypoint.lon, dms = true), style = MaterialTheme.typography.bodySmall)
+                Text(formatCoord(waypoint.lat, waypoint.lon), style = MaterialTheme.typography.bodySmall)
+                if (waypoint.description.isNotBlank()) {
+                    Text(waypoint.description, style = MaterialTheme.typography.bodyMedium)
+                }
+                PhotoStrip(waypoint.photos)
+                if (waypoint.voiceNotes.isNotEmpty()) {
+                    Text(tr("Голосовые заметки: ${waypoint.voiceNotes.size}", "Voice notes: ${waypoint.voiceNotes.size}"), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onNavigate) { Text(tr("К точке", "Navigate")) } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onDelete) { Text(tr("Удалить", "Delete")) }
+                TextButton(onClick = onDismiss) { Text(tr("Закрыть", "Close")) }
+            }
         },
     )
 }

@@ -229,6 +229,7 @@ fun MapScreen(
     var showExit by remember { mutableStateOf(false) }
     var showGoto by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var selectedWaypoint by remember { mutableStateOf<Waypoint?>(null) }
     var showStartRecording by remember { mutableStateOf(false) }
     // Journal track finished recently — ask "continue or new?" before the preset dialog.
     var continueCandidate by remember { mutableStateOf<Track?>(null) }
@@ -984,9 +985,11 @@ fun MapScreen(
             followLocation = orientation == "course",
             downloadCorridor = corridorRequest,
             onDownloadCorridorDone = { corridorRequest = null },
+            onWaypointTap = { wp -> selectedWaypoint = wp },
             onTap = { point ->
                 val target = pickTarget
                 if (target == null) {
+                    selectedWaypoint = null
                     // Desktop: a plain click is just a click; "Add waypoint" is in the right-click menu.
                     if (!PlatformInfo.isDesktop) picked = point
                 } else {
@@ -999,6 +1002,7 @@ fun MapScreen(
                 }
             },
             onSecondaryTap = { point, offset ->
+                selectedWaypoint = null
                 secondaryMenu = SecondaryMenu(point, offset)
             },
         )
@@ -1242,32 +1246,44 @@ fun MapScreen(
             }
         }
 
-        // Layers button: top-right corner like Guru, always visible.
-        Box(
+        // Layers + POI toggle: top-right corner.
+        Row(
             Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 10.dp, end = 10.dp)
                 .gestureBarrier(),
+            horizontalArrangement = Arrangement.spacedBy(controlSpacing),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             MapControl(
-                Icons.Filled.Layers,
-                tr("Слои", "Layers"),
-                settings.mapLayer == "satellite" || settings.overlayEnabled,
+                Icons.Filled.Place,
+                tr("Точки POI", "POI points"),
+                settings.showPois,
                 size = controlSize,
             ) {
-                showLayers = true
+                onSettingsChange(settings.copy(showPois = !settings.showPois))
             }
-        if (showLayers) {
-            MapLayersSheet(
-                settings = settings,
-                onSettingsChange = onSettingsChange,
-                allStyles = MapStyles.all + ru.azimut.app.core.map.UserXyz.asStyles(),
-                overlayOptions = MapStyles.satelliteOptions +
-                    UserMaps.stylesFlow.collectAsState().value.map { it.cacheLayer to Pair(it.titleRu, it.titleEn) },
-                onPoiTypes = { showPoiTypes = true },
-                onDismiss = { showLayers = false },
-            )
-        }
+            Box {
+                MapControl(
+                    Icons.Filled.Layers,
+                    tr("Слои", "Layers"),
+                    settings.mapLayer == "satellite" || settings.overlayEnabled,
+                    size = controlSize,
+                ) {
+                    showLayers = true
+                }
+                if (showLayers) {
+                    MapLayersSheet(
+                        settings = settings,
+                        onSettingsChange = onSettingsChange,
+                        allStyles = MapStyles.all + ru.azimut.app.core.map.UserXyz.asStyles(),
+                        overlayOptions = MapStyles.satelliteOptions +
+                            UserMaps.stylesFlow.collectAsState().value.map { it.cacheLayer to Pair(it.titleRu, it.titleEn) },
+                        onPoiTypes = { showPoiTypes = true },
+                        onDismiss = { showLayers = false },
+                    )
+                }
+            }
         }
 
         // Right side controls; the strip swallows taps so misses hit nothing.
@@ -1820,6 +1836,18 @@ fun MapScreen(
                 picked = null
                 message = waypointSavedMessage
             },
+        )
+    }
+
+    selectedWaypoint?.let { wp ->
+        WaypointInfoDialog(
+            waypoint = wp,
+            onDismiss = { selectedWaypoint = null },
+            onDelete = {
+                onDeletePoint(wp)
+                selectedWaypoint = null
+            },
+            onNavigate = { navTarget.value = wp; selectedWaypoint = null },
         )
     }
 

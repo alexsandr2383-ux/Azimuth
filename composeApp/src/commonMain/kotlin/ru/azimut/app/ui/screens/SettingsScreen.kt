@@ -918,10 +918,11 @@ fun SettingsScreen(
                                 outcome.cancelled -> msgDownloadCancelled
                                 outcome.offline && outcome.imported == 0 -> msgNoNetwork
                                 else -> {
-                                    val failedPart = if (outcome.failed.isEmpty()) "" else
+                                    val errPart = if (outcome.errors.isEmpty()) "" else
+                                        "\n" + msgErrors + outcome.errors.joinToString("; ")
+                                    val failedPart = if (outcome.failed.isEmpty() || outcome.errors.isNotEmpty()) "" else
                                         "\n" + msgErrors + outcome.failed.joinToString(", ")
-                                    msgTilesDone +
-                                        "${outcome.imported}$failedPart"
+                                    msgTilesDone + "${outcome.imported}$errPart$failedPart"
                                 }
                             }
                         }
